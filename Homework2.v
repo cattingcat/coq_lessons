@@ -159,7 +159,7 @@ Notation "x y *" :=
     (in custom prog at level 1).
 
 Set Printing All.
-Check [| 2 2 + 3 + 4 *|].
+Check [| 2 2 + 3 + 4 * |].
 Unset Printing All.
 
 
