@@ -131,31 +131,37 @@ Definition lem_to_Frobenius2 : LEM -> Frobenius2
 := lem_to_frob.
 
 
-(*
-Definition frob_to_lem  (A : Type) (P : A -> Prop) (Q : Prop) : 
-  ((forall x, Q \/ P x) <-> (Q \/ forall x, P x)) -> (Q \/ ~ Q)
+Inductive prop_holds (A : Prop) : Type :=
+  | a_holds : A -> prop_holds A.
+
+
+
+Definition frob_to_lem :
+  (forall (A : Type) (P : A -> Prop) (Q : Prop), (forall x, Q \/ P x) <-> (Q \/ forall x, P x))
+  ->
+  (forall (Q : Prop), Q \/ ~ Q)
 :=
-  (* (forall x, Q \/ P x) -> (Q \/ forall x, P x) *)
-  (* (Q \/ forall x, P x) -> (forall x, Q \/ P x) *)
-  fun '(conj fw bw) => 
-    match fw 
-      (fun x => or_introl True) 
-    with
-    | or_introl q => or_introl q
-    | or_intror x2Px => or_introl q
+  fun frob (tQ : Prop) =>
+    match frob (prop_holds tQ) (fun _ => False) tQ with
+    | conj fw _ => 
+      match fw (fun ph => match ph with a_holds _ q => or_introl q end) with
+      | or_introl q => or_introl q
+      | or_intror xPx => or_intror (fun Q => xPx (a_holds tQ Q))
+      end
     end.
-*)
 
 
-
-(*
 Definition lem_iff_Frobenius2 :
   LEM <-> Frobenius2
-:=
-*)
+:= conj lem_to_frob frob_to_lem.
+
 
 End Quantifiers.
 
+
+Variable PP : Prop.
+Variable frob: Frobenius2.
+Check frob PP (fun _ => False) PP.
 
 
 
@@ -165,6 +171,8 @@ End Quantifiers.
 
 (* Section ExtensionalEqualityAndComposition. *)
 
+From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+
 Variables A B C D : Type.
 
 (** Exercise 2a *)
@@ -172,7 +180,8 @@ Variables A B C D : Type.
 
 Definition compA (f : A -> B) (g : B -> C) (h : C -> D) :
   (h \o g) \o f = h \o (g \o f)
-:=
+:= 
+  erefl.
 
 
 (** [=1] stands for extensional equality on unary functions,

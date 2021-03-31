@@ -14,7 +14,7 @@ Definition f_congr {A B} (f : A -> B) (x y : A) :
 Definition f_congr' A B (f g : A -> B) (x y : A) :
   f = g  ->  x = y  ->  f x = g y
 :=
-  fun '(eq_refl) => fun '(eq_refl) => 
+  fun '(eq_refl) '(eq_refl) => 
     (eq_refl : eq (f x) (f x)).
 
 (** extra exercise *)
