@@ -306,6 +306,8 @@ Notation "x * y" := (mult x y)
 
 Example tst_minus_assoc: 
   ((S (S O)) - (S O) - (S O)) = (((S (S O)) - (S O)) - (S O)).
+Proof. simpl. reflexivity. Qed.
+
 
 Fixpoint eqb (n m : nat) : bool :=
   match n, m with
