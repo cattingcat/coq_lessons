@@ -399,7 +399,7 @@ Proof.
        environment!  We can make a little progress by using
        the IH to rewrite the goal... *)
     rewrite <- IHl'.
-    rewrite Induction.add_comm.
+    (*rewrite Induction.add_comm.*)
     (* ... but now we can't go any further. *)
 Abort.
 
