@@ -1,6 +1,5 @@
 Module Induction.
 
-
 Theorem add_0_r_firsttry : forall (n : nat),
   n + 0 = n.
 Proof.
