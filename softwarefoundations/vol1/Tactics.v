@@ -501,4 +501,258 @@ Proof.
 Qed.
 
 
+
+
+Definition sillyfun1 (n : nat) : bool :=
+  if n =? 3 then true
+  else if n =? 5 then true
+  else false.
+
+Theorem sillyfun1_odd_FAILED : forall (n : nat),
+  sillyfun1 n = true ->
+  odd n = true.
+Proof.
+  intros n eq. unfold sillyfun1 in eq.
+  destruct (n =? 3).
+  (* stuck... *)
+Abort.
+
+
+Theorem sillyfun1_odd : forall (n : nat),
+  sillyfun1 n = true ->
+  odd n = true.
+Proof.
+  intros n eq. unfold sillyfun1 in eq.
+  destruct (n =? 3) eqn:Heqe3.
+  - (* e3 = true *) 
+    apply eqb_true in Heqe3.
+    rewrite -> Heqe3. 
+    reflexivity.
+  - (* e3 = false *)
+    destruct (n =? 5) eqn:Heqe5.
+    + (* e5 = true *)
+      apply eqb_true in Heqe5.
+      rewrite -> Heqe5. 
+      reflexivity.
+    + (* e5 = false *) 
+      discriminate eq.
+Qed.
+
+
+Theorem bool_fn_applied_thrice :
+  forall (f : bool -> bool) (b : bool),
+  f (f (f b)) = f b.
+Proof.
+  destruct b eqn:B.
+  - destruct (f true) eqn:FTrue.
+    + rewrite -> FTrue.
+      rewrite -> FTrue.
+      reflexivity.
+    + destruct (f false) eqn:FFalse.
+      * apply FTrue.
+      * apply FFalse.
+  - destruct (f false) eqn:FFalse.
+    + destruct (f true) eqn:FTrue.
+      * apply FTrue.
+      * apply FFalse.
+    + rewrite -> FFalse.
+      rewrite -> FFalse.
+      reflexivity.
+Qed.
+
+
+
+
+
+
+
+
+Theorem eqb_sym : forall (n m : nat),
+  (n =? m) = (m =? n).
+Proof.
+  intros n.
+  induction n as [| n' H ].
+  - intros m.
+    destruct m eqn:M.
+    + simpl.
+      reflexivity.
+    + simpl.
+      reflexivity.
+  - intros m.
+    destruct m eqn:M.
+    + simpl.
+      reflexivity.
+    + simpl.
+      apply H.
+Qed.
+
+Lemma eqb_refl : forall n, n =? n = true.
+Proof.
+  intros n.
+  induction n as [| n' H].
+  - reflexivity.
+  - simpl.
+    apply H.
+Qed.
+
+Theorem eqb_trans : forall n m p,
+  n =? m = true ->
+  m =? p = true ->
+  n =? p = true.
+Proof.
+  intros n m p H G.
+  rewrite -> (eqb_true n m H).
+  rewrite -> (eqb_true m p G).
+  apply eqb_refl.
+Qed.
+
+
+
+
+
+Lemma len0_is_empty: forall (X: Type) (l: list X), length l = 0 -> l = [].
+Proof.
+  intros X l LenH.
+  destruct l as [| h t ] eqn:E.
+  - reflexivity.
+  - simpl in LenH.
+    discriminate LenH.
+Qed.
+
+
+Definition split_combine_statement : Prop := 
+  forall (X Y: Type) (l: list (X*Y)) (l1: list X) (l2: list Y) (H: length l1 = length l2), combine l1 l2 = l -> split l = (l1, l2).
+
+Theorem split_combine : split_combine_statement.
+Proof.
+  intros X Y l.
+  induction l as [| (x,y) ltail H ].
+  - intros l1 l2 HLen HComb.
+    simpl.
+    destruct l1 eqn:L1E.
+    + simpl in HLen.
+      symmetry in HLen.
+      rewrite -> (len0_is_empty Y l2 HLen).
+      reflexivity.
+    + destruct l2 eqn:L2E.
+      * simpl in HLen.
+        discriminate HLen.
+      * simpl in HComb.
+        discriminate HComb.
+  - intros l1 l2 HLen HComb.
+    simpl.
+    destruct l1 eqn:L1E.
+    + simpl in HComb. 
+      discriminate HComb.
+    + destruct l2 eqn:L2E.
+      * simpl in HLen.
+        discriminate HLen.
+      * simpl in HComb.
+        injection HComb as HComb'1 HComb'2 HComb'3.
+(*        destruct (split ltail) eqn:E.*)
+        rewrite -> HComb'1.
+        rewrite -> HComb'2.
+        rewrite -> HComb'1 in L1E.
+        rewrite -> HComb'2 in L2E.
+        simpl in HLen.
+        injection HLen as HLen'.
+        rewrite -> (H l l0 HLen' HComb'3).
+        reflexivity.
+Qed.
+
+
+
+Fixpoint filter {X: Type} (test: X -> bool) (l: list X) : list X :=
+  match l with
+  | []     => []
+  | h :: t =>
+    if test h 
+    then h :: (filter test t)
+    else filter test t
+  end.
+
+
+Theorem filter_exercise : forall (X : Type) (test : X -> bool) (x : X) (l lf : list X),
+  filter test l = x :: lf -> test x = true.
+Proof.
+  intros X test x l.
+  generalize dependent x.
+  generalize dependent X.
+  induction l as [| lh lt LH ].
+  - simpl.
+    intros x lf H.
+    discriminate H.
+  - destruct (test lh) eqn:TstLh.
+    + simpl.
+      rewrite -> TstLh.
+      intros x lf HH.
+      injection HH as HH'.
+      rewrite <- HH'.
+      apply TstLh.
+    + simpl.
+      rewrite -> TstLh.
+      apply LH.
+Qed.
+
+
+
+
+Fixpoint forallb {X : Type} (test : X -> bool) (l : list X) : bool :=
+  match l with
+  | nil => true
+  | cons h t => if test h then forallb test t else false
+  end.
+
+Example test_forallb_1 : forallb odd [1;3;5;7;9] = true.
+Proof. reflexivity. Qed.
+Example test_forallb_2 : forallb negb [false;false] = true.
+Proof. reflexivity. Qed.
+Example test_forallb_3 : forallb even [0;2;4;5] = false.
+Proof. reflexivity. Qed.
+Example test_forallb_4 : forallb (eqb 5) [] = true.
+Proof. reflexivity. Qed.
+
+
+Fixpoint existsb {X : Type} (test : X -> bool) (l : list X) : bool :=
+  match l with
+  | nil => false
+  | cons h t => if test h then true else existsb test t
+  end.
+
+Example test_existsb_1 : existsb (eqb 5) [0;2;3;6] = false.
+Proof. reflexivity. Qed.
+Example test_existsb_2 : existsb (andb true) [true;true;false] = true.
+Proof. reflexivity. Qed.
+Example test_existsb_3 : existsb odd [1;0;0;0;0;3] = true.
+Proof. reflexivity. Qed.
+Example test_existsb_4 : existsb even [] = false.
+Proof. reflexivity. Qed.
+
+Definition existsb' {X : Type} (test : X -> bool) (l : list X) : bool := 
+  negb (forallb (fun i => negb (test i)) l).
+
+Theorem existsb_existsb' : forall (X : Type) (test : X -> bool) (l : list X),
+  existsb test l = existsb' test l.
+Proof. 
+  intros X test l.
+  induction l as [| lh lt LH ].
+  - unfold existsb'.
+    simpl.
+    reflexivity.
+  - destruct (test lh) eqn:E.
+    + unfold existsb'.
+      simpl.
+      rewrite -> E.
+      simpl.
+      reflexivity.
+    + unfold existsb'.
+      simpl.
+      rewrite -> E.
+      simpl.
+      rewrite -> LH.
+      unfold existsb'.
+      reflexivity.
+Qed.
+
+
 End Tactics.
