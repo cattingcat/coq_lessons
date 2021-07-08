@@ -887,12 +887,170 @@ Proof.
       apply H'.
 Qed.
 
+Lemma ht_subset_then_t_subset : forall a s l, 
+  subseq (a :: s) l -> subseq s l.
+Proof.
+  intros a s l H.
+  remember (a :: s) as k eqn:Ek.
+  induction H as [l | a' s' l' H' IH | a' s' l' H' IH].
+  - discriminate Ek.
+  - injection Ek as Eka Eks.
+    apply add_l.
+    rewrite -> Eks in H'.
+    apply H'.
+  - apply add_l.
+    apply IH.
+    apply Ek.
+Qed.
 
-Theorem subseq_trans : ∀ (l1 l2 l3 : list nat),
-  subseq l1 l2 →
-  subseq l2 l3 →
+Lemma false_sublist: forall s, subseq s [ ] -> s = [ ].
+Proof.
+  intros s H.
+  remember [ ] as k eqn:Ek.
+  destruct H as [ l | a s' l | a s' l].
+  - rewrite -> Ek. reflexivity.
+  - discriminate Ek.
+  - discriminate Ek.
+Qed.
+
+(*
+Lemma subseq : forall s a l sh st s', 
+  s (a :: l) -> subseq (sh :: st) l \/ s = nil \/ (s = a :: s' /\ subseq s' s).
+Proof.
+*)
+
+Lemma tst : forall a h t, 
+  subseq a (h :: t) -> 
+  (exists at', a = h :: at' /\ subseq at' t)
+  \/
+  subseq a t.
+Proof.
+  intros a h t H.
+  destruct a as [| ah at' ].
+  - right. apply empty.
+  - destruct H as [l | hH sH lH H' | hH sH lH H' ].
+    + right. apply empty.
+    + left.
+      
+Admitted.
+
+
+Theorem subseq_trans: forall a b c,
+  subseq a b -> subseq b c -> subseq a c.
+Proof.
+  intros a b c.
+  induction c as [| hc tc IHc ].
+  - intros H1 H2.
+    apply false_sublist in H2.
+    rewrite -> H2 in H1.
+    apply false_sublist in H1.
+    rewrite -> H1.
+    apply empty.
+  - intros H1 H2.
+    remember (hc :: tc) as k eqn:Ek.
+    destruct H2 as [ l | h s tc' | h s tc' ] eqn:Eh2.
+    + rewrite -> Ek.
+      apply add_l.
+      apply IHc.
+      * apply H1.
+      * apply empty.
+    + injection Ek as Ek1 Ek2.
+      remember (hc :: tc) as k eqn:Ek.
+      apply tst in H1.
+      destruct H1 as [ Hat | HSas].
+      * rewrite -> Ek2.
+        apply add_l.
+        apply IHc.
+        -- destruct Hat as [at' [HAeq HSs] ].
+           rewrite -> HAeq.
+           apply add.
+           apply HSs.
+        -- 
+        destruct Hat as [at' [HAeq HSs] ].
+        rewrite -> HAeq.
+        apply add.
+        rewrite -> Ek2.
+        
+        
+      rewrite -> Ek2.
+      apply add_l.
+      apply IHc.
+      * apply H1.
+      * 
+injection Ek as Ek1 Ek2.
+       
+
+Theorem subseq_trans: forall a b c,
+  subseq a b -> subseq b c -> subseq a c.
+Proof.
+  intros a.
+  induction a as [| ha ta IHa ].
+  - intros b c h1 h2. apply empty.
+  - 
+
+Lemma t: forall s s' l, 
+  subseq s l -> subseq s' s -> subseq s' l.
+Proof.
+  intros s.
+  induction s as [| sh st IH].
+  - intros s' l H1 H2.  
+    assert(G: s' = [ ]). {
+      apply (false_sublist s' H2).
+    }
+    rewrite -> G.
+    apply empty.
+  - intros s' l H1 H2.
+    apply IH.
+    + apply (ht_subset_then_t_subset sh).
+      apply H1.
+    + destruct H2 as 
+
+  - 
+  - discriminate Ek.
+  - injection Ek as Eka Eks.
+    
+  
+
+Theorem subseq_trans : forall (l1 l2 l3 : list nat),
+  subseq l1 l2 ->
+  subseq l2 l3 ->
   subseq l1 l3.
 Proof.
+  intros l1 l2 l3 H12 H23.
+  induction H12 as [l | a s l H IH | a s l H IH].
+  - apply empty.
+  - 
+
+
+  (a :: s) l
+  s' s
+  (a :: s') l
+
+  intros l1.
+  induction l1 as [| h t IH].
+  - intros l2 l3 H12 H23. apply empty.
+  - intros l12 l3 H12 H23.
+    remember (h :: t) as k eqn:Ek.
+    destruct H12 as [l | a s l H' | a s l H'].
+    + discriminate Ek.
+    + injection Ek as Ea Es.
+      remember (a :: l) as k' eqn:Ek'.
+      destruct H23 as [l23 | a23 s23 l23 H23' | a23 s23 l23 H23'].
+      * discriminate Ek'.
+      * injection Ek' as Ea' Es'.
+        rewrite -> Ea'.
+        apply add.
+        rewrite <- Es in IH.
+        apply (IH l).
+        -- apply H'.
+        -- rewrite <- Es'.
+            apply H23'.
+        
+      * apply add_l.
+        rewrite <- Es in IH.
+        rewrite -> Ek' in H23'.
+        apply IH.
+
   (* FILL IN HERE *) Admitted.
 
 End Sublist.
