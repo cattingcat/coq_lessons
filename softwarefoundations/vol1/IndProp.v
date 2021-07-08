@@ -845,6 +845,9 @@ Inductive subseq : list nat -> list nat -> Prop :=
   | add_l a s l (H: subseq s l) : subseq s          (cons a l)
 .
 
+Notation "a $ b" := (subseq a b)
+                    (at level 60).
+
 Theorem subseq_refl : forall (l : list nat), subseq l l.
 Proof.
   intros l.
@@ -913,147 +916,106 @@ Proof.
   - discriminate Ek.
 Qed.
 
-(*
-Lemma subseq : forall s a l sh st s', 
-  s (a :: l) -> subseq (sh :: st) l \/ s = nil \/ (s = a :: s' /\ subseq s' s).
-Proof.
-*)
-
-Lemma tst : forall a h t, 
+Lemma destruct_second_cons : forall a h t, 
   subseq a (h :: t) -> 
   (exists at', a = h :: at' /\ subseq at' t)
   \/
   subseq a t.
 Proof.
   intros a h t H.
-  destruct a as [| ah at' ].
+  remember (h :: t) as k eqn:Ek.
+  destruct a as [| ah at' ] eqn:Ea.
   - right. apply empty.
   - destruct H as [l | hH sH lH H' | hH sH lH H' ].
     + right. apply empty.
     + left.
-      
-Admitted.
+      exists sH.
+      injection Ek as Ek1 Ek2.
+      split.
+      * rewrite -> Ek1. reflexivity.
+      * rewrite <- Ek2. apply H'.
+    + right.
+      injection Ek as Ek1 Ek2.
+      rewrite <- Ek2.
+      apply H'.
+Qed.
 
 
-Theorem subseq_trans: forall a b c,
-  subseq a b -> subseq b c -> subseq a c.
+Lemma elim_same_head : forall h a b, (h :: a) $ (h :: b) -> a $ b.
 Proof.
-  intros a b c.
-  induction c as [| hc tc IHc ].
-  - intros H1 H2.
-    apply false_sublist in H2.
-    rewrite -> H2 in H1.
+  intros h a b H.
+  remember (h :: a) as ra eqn:Era.
+  remember (h :: b) as rb eqn:Erb.
+  induction H as [l | h' s l H' IH | h' s l H' IH].
+  - discriminate Era.
+  - injection Era as Era1 Era2.
+    injection Erb as Erb1 Erb2.
+    rewrite <- Erb2.
+    rewrite <- Era2.
+    apply H'.
+  - rewrite -> Era in H'.
+    injection Erb as Erb1 Erb2.
+    rewrite -> Erb2 in H'.
+    apply ht_subset_then_t_subset in H'.
+    apply H'.
+Qed.
+
+
+Theorem subseq_trans_h2: forall a b c,
+  a $ b -> b $ c -> a $ c.
+Proof.
+  intros a b c H1 H2.
+  generalize dependent a.
+  induction H2 as [l | h s l H2' IH | h s l H2' IH ].
+  - intros a H1.
     apply false_sublist in H1.
     rewrite -> H1.
     apply empty.
-  - intros H1 H2.
-    remember (hc :: tc) as k eqn:Ek.
-    destruct H2 as [ l | h s tc' | h s tc' ] eqn:Eh2.
-    + rewrite -> Ek.
-      apply add_l.
-      apply IHc.
-      * apply H1.
-      * apply empty.
-    + injection Ek as Ek1 Ek2.
-      remember (hc :: tc) as k eqn:Ek.
-      apply tst in H1.
-      destruct H1 as [ Hat | HSas].
-      * rewrite -> Ek2.
-        apply add_l.
-        apply IHc.
-        -- destruct Hat as [at' [HAeq HSs] ].
-           rewrite -> HAeq.
-           apply add.
-           apply HSs.
-        -- 
-        destruct Hat as [at' [HAeq HSs] ].
-        rewrite -> HAeq.
-        apply add.
-        rewrite -> Ek2.
-        
-        
-      rewrite -> Ek2.
-      apply add_l.
-      apply IHc.
-      * apply H1.
-      * 
-injection Ek as Ek1 Ek2.
-       
-
-Theorem subseq_trans: forall a b c,
-  subseq a b -> subseq b c -> subseq a c.
-Proof.
-  intros a.
-  induction a as [| ha ta IHa ].
-  - intros b c h1 h2. apply empty.
-  - 
-
-Lemma t: forall s s' l, 
-  subseq s l -> subseq s' s -> subseq s' l.
-Proof.
-  intros s.
-  induction s as [| sh st IH].
-  - intros s' l H1 H2.  
-    assert(G: s' = [ ]). {
-      apply (false_sublist s' H2).
-    }
-    rewrite -> G.
-    apply empty.
-  - intros s' l H1 H2.
-    apply IH.
-    + apply (ht_subset_then_t_subset sh).
+  - intros a H1.
+    assert (G: (exists at', a = h :: at' /\ subseq at' s) \/ subseq a s). {
+      apply destruct_second_cons.
       apply H1.
-    + destruct H2 as 
-
-  - 
-  - discriminate Ek.
-  - injection Ek as Eka Eks.
-    
-  
+    }
+    destruct G as [[atail [HAeq Hatail]] | Has ].
+    + rewrite -> HAeq.
+      apply add.
+      rewrite -> HAeq in H1.
+      apply elim_same_head in H1.
+      apply IH.
+      apply H1.
+    + apply add_l.
+      apply IH.
+      apply Has.
+  - intros a H1.
+    apply add_l.
+    apply IH.
+    apply H1.
+Qed.
 
 Theorem subseq_trans : forall (l1 l2 l3 : list nat),
   subseq l1 l2 ->
   subseq l2 l3 ->
   subseq l1 l3.
 Proof.
-  intros l1 l2 l3 H12 H23.
-  induction H12 as [l | a s l H IH | a s l H IH].
-  - apply empty.
-  - 
-
-
-  (a :: s) l
-  s' s
-  (a :: s') l
-
-  intros l1.
-  induction l1 as [| h t IH].
-  - intros l2 l3 H12 H23. apply empty.
-  - intros l12 l3 H12 H23.
-    remember (h :: t) as k eqn:Ek.
-    destruct H12 as [l | a s l H' | a s l H'].
-    + discriminate Ek.
-    + injection Ek as Ea Es.
-      remember (a :: l) as k' eqn:Ek'.
-      destruct H23 as [l23 | a23 s23 l23 H23' | a23 s23 l23 H23'].
-      * discriminate Ek'.
-      * injection Ek' as Ea' Es'.
-        rewrite -> Ea'.
-        apply add.
-        rewrite <- Es in IH.
-        apply (IH l).
-        -- apply H'.
-        -- rewrite <- Es'.
-            apply H23'.
-        
-      * apply add_l.
-        rewrite <- Es in IH.
-        rewrite -> Ek' in H23'.
-        apply IH.
-
-  (* FILL IN HERE *) Admitted.
+  apply subseq_trans_h2.
+Qed.
 
 End Sublist.
+
+Inductive R : nat -> list nat -> Prop :=
+  | c1                    : R 0     []
+  | c2 n l (H: R n     l) : R (S n) (n :: l)
+  | c3 n l (H: R (S n) l) : R n     l.
+
+(* Which of the following propositions are provable? *)
+Theorem tr1: R 2 [1;0].
+Proof. apply c2. apply c2. apply c1. Qed.
+
+Theorem tr2: R 1 [1;2;1;0].
+Proof. apply c3. apply c2. apply c3. apply c3. apply c2. apply c2. apply c2. apply c1. Qed.
+
+Theorem tr3: R 6 [3;2;1;0].
+Proof. Abort.
 
 
 
