@@ -1647,7 +1647,8 @@ Lemma pumping : forall T (re : reg_exp T) s,
   s =~ re ->
   pumping_constant re <= length s ->
   exists s1 s2 s3,
-    s = s1 ++ s2 ++ s3 /\ s2 <> [] /\ length s1 + length s2 <= pumping_constant re /\ forall m, s1 ++ napp m s2 ++ s3 =~ re.
+    s = s1 ++ s2 ++ s3 /\ s2 <> [] 
+      /\ length s1 + length s2 <= pumping_constant re /\ forall m, s1 ++ napp m s2 ++ s3 =~ re.
 Proof.
   intros T re s Hmatch.
   induction Hmatch
@@ -1663,6 +1664,167 @@ End Pumping.
 
 End RegExp.
 
+
+Inductive reflect (P : Prop) : bool -> Prop :=
+  | ReflectT (H : P) : reflect P true
+  | ReflectF (H : ~ P) : reflect P false.
+
+Theorem iff_reflect : forall P b, (P <-> b = true) -> reflect P b.
+Proof.
+  intros P b H. destruct b eqn:Eb.
+  - apply ReflectT. rewrite H. reflexivity.
+  - apply ReflectF. rewrite H. intros H'. discriminate.
+Qed.
+
+Theorem reflect_iff : forall P b, reflect P b -> (P <-> b = true).
+Proof.
+  intros P b H.
+  destruct H as [p | p].
+  - split.
+    + intros P'. reflexivity.
+    + intros T. apply p.
+  - split.
+    + intros P'. exfalso. apply (p P').
+    + intros F. discriminate F.
+Qed.
+
+Lemma eqb_eq : forall m n, n = m <-> (n =? m) = true.
+Proof.
+  intros m n.
+  split.
+  - intros H.
+    rewrite -> H.
+    assert(G: forall n, (n =? n) = true). {
+      intros k.
+      induction k as [| k' IH].
+      - reflexivity.
+      - simpl. rewrite -> IH. reflexivity.
+    }
+    apply G. 
+  - generalize dependent m.
+    induction n as [| n' IH].
+    + destruct m as [| m'].
+      * simpl. intros H. reflexivity.
+      * simpl. intros H. discriminate H.
+    + destruct m as [| m'].
+      * simpl. intros H. discriminate H.
+      * simpl. intros H. rewrite -> (IH m' H). reflexivity.
+Qed.
+
+
+Lemma eqbP : forall n m, reflect (n = m) (n =? m).
+Proof.
+  intros n m. apply iff_reflect. rewrite eqb_eq. reflexivity.
+Qed.
+
+
+Fixpoint filter {X: Type} (test: X -> bool) (l: list X) : list X :=
+  match l with
+  | []     => []
+  | h :: t =>
+    if test h 
+    then h :: (filter test t)
+    else filter test t
+  end.
+
+Theorem filter_not_empty_In' : forall n l,
+  filter (fun x => n =? x) l <> [] ->
+  In n l.
+Proof.
+  intros n l. induction l as [|m l' IHl'].
+  - (* l =  *)
+    simpl. intros H. apply H. reflexivity.
+  - (* l = m :: l' *)
+    simpl. destruct (eqbP n m) as [H | H].
+    + (* n = m *)
+      intros _. rewrite H. left. reflexivity.
+    + (* n <> m *)
+      intros H'. right. apply IHl'. apply H'.
+Qed.
+
+
+Fixpoint count n l :=
+  match l with
+  | [] => 0
+  | m :: l' => (if n =? m then 1 else 0) + count n l'
+  end.
+
+Theorem eqbP_practice : forall n l,
+  count n l = 0 -> ~(In n l).
+Proof.
+  intros n l H.
+  induction l as [| h t IH ].
+  - simpl in H. simpl. unfold not. intros F. apply F.
+  - simpl.
+    simpl in H.
+    destruct (eqbP n h) as [Heq | Heq].
+    + simpl in H.
+      discriminate H.
+    + simpl in H.
+      apply IH in H.
+      unfold not.
+      intros G.
+      destruct G as [G1 | G2].
+      * apply Heq.
+        symmetry.
+        apply G1.
+      * apply H.
+        apply G2.
+Qed.
+
+
+Module Stutter.
+Inductive nostutter {X:Type} : list X -> Prop :=
+  | empty : nostutter nil
+  | one x : nostutter [x]
+  | add n x t (Hneq : n <> x) (Hh : nostutter (x :: t)) : nostutter (n :: x :: t)
+.
+
+Example test_nostutter_1: nostutter [3;1;4;1;5;6].
+Proof. repeat constructor; apply eqb_neq; auto. Qed.
+
+Example test_nostutter_2: nostutter (@nil nat).
+Proof. repeat constructor; apply eqb_neq; auto. Qed.
+
+Example test_nostutter_3: nostutter [5].
+Proof. repeat constructor; auto. Qed.
+
+Example test_nostutter_4: not (nostutter [3;1;1;4]).
+Proof. intro.
+  repeat match goal with
+    h: nostutter _ |- _ => inversion h; clear h; subst
+  end.
+  contradiction; auto. Qed.
+End Stutter.
+
+
+Module InOrderMerged.
+Inductive in_order_merged {X:Type} : list X -> list X -> list X -> Prop :=
+  | empty : in_order_merged nil nil nil
+  | addl n l1 l2 lr (H: in_order_merged l1 l2 lr) : in_order_merged (n :: l1) l2 (n :: lr)
+  | addr n l1 l2 lr (H: in_order_merged l1 l2 lr) : in_order_merged l1 (n :: l2) (n :: lr)
+.
+
+Example ex1 : in_order_merged [1;6;2] [4;3] [1;4;6;2;3].
+Proof. apply addl. apply addr. apply addl. apply addl. apply addr. apply empty. Qed.
+
+Fixpoint elem_of (l: list nat) (x : nat) : bool :=
+  match l with
+  | nil => false
+  | cons h t => if h =? x then true else elem_of t x
+  end.
+
+Theorem filter_preserve_ord: forall l1 l2 lr, 
+  in_order_merged l1 l2 lr -> (forall x, In x l1 -> ~(In x l2)) -> filter (elem_of l1) lr = l1.
+Proof.
+  intros l1 l2 lr H Hexcl.
+  induction H as [| n l1' l2' lr' H' IH| n l1' l2' lr' H' IH].
+  - reflexivity.
+  - simpl.
+    destruct (eqbP n n).
+Admitted.
+
+End InOrderMerged.
 
 
 
