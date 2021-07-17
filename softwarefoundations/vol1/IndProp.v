@@ -1814,15 +1814,249 @@ Fixpoint elem_of (l: list nat) (x : nat) : bool :=
   | cons h t => if h =? x then true else elem_of t x
   end.
 
-Theorem filter_preserve_ord: forall l1 l2 lr, 
-  in_order_merged l1 l2 lr -> (forall x, In x l1 -> ~(In x l2)) -> filter (elem_of l1) lr = l1.
+Lemma same_start_list: forall T (h : T) (t t': list T), t = t' -> h :: t = h :: t'.
 Proof.
-  intros l1 l2 lr H Hexcl.
-  induction H as [| n l1' l2' lr' H' IH| n l1' l2' lr' H' IH].
+  intros T h t t' H.
+  rewrite -> H.
+  reflexivity.
+Qed.
+
+Lemma add_false_simpl: forall P, (False \/ P) -> P.
+Proof.
+  intros P H.
+  destruct H as [l | r].
+  - exfalso. apply l.
+  - apply r.
+Qed.
+
+
+Lemma inP : forall (x : nat) (l : list nat), 
+  reflect (In x l) (elem_of l x).
+Proof.
+  intros x l.
+  induction l as [| h t H].
+  - simpl. apply ReflectF. unfold not. intros F. apply F.
+  - simpl. 
+    destruct (eqbP h x) as [Hhx|Hhx].
+    + apply ReflectT.
+      left. apply Hhx.
+    + unfold not in Hhx.
+      destruct H.
+      * apply ReflectT. right. apply H.
+      * apply ReflectF. unfold not.
+        intros HF.
+        destruct HF as [HFl|HFr].
+        -- apply Hhx. apply HFl.
+        -- apply H. apply HFr.
+Qed.
+
+Lemma neg_app: forall A B, (~ (A \/ B)) <-> ~A /\ ~B.
+Proof.
+  intros A B.
+  split.
+  * intros H.
+    split.
+    - unfold not in H.
+      unfold not.
+      intros AH.
+      apply H.
+      apply (or_intro_l A _ AH).
+    - unfold not in H.
+      unfold not.
+      intros BH.
+      apply H.
+      apply (or_intro_r A B BH).
+  * intros [Hl Hr].
+    unfold not.
+    intros Hor.
+    destruct Hor as [Horl | Horr].
+    - apply Hl. apply Horl.
+    - apply Hr. apply Horr.
+Qed.
+
+Theorem sum_nas_no_item: forall A (x: A) l1 l2 lr, 
+  in_order_merged l1 l2 lr -> (~ In x l1 /\ ~ In x l2 ) -> (~ (In x lr)).
+Proof.
+  intros A x l1 l2 lr H1 H2.
+  induction H1 as [| n l1' l2' lr' H1' IH| n l1' l2' lr' H1' IH].
+  - destruct H2 as [H2l H2r].
+    apply H2l.
+  - simpl. apply neg_app.
+    simpl in H2. rewrite -> neg_app in H2.
+    destruct H2 as [[Hneq Hxl1] Hxl2].
+    split.
+    + apply Hneq.
+    + apply IH.
+      split.
+      * apply Hxl1.
+      * apply Hxl2.
+  - simpl. apply neg_app.
+    simpl in H2. rewrite -> neg_app in H2.
+    destruct H2 as [Hxl1 [Hneq Hxl2]].
+    split.
+    + apply Hneq.
+    + apply IH.
+      split.
+      * apply Hxl1.
+      * apply Hxl2.
+Qed.
+
+Lemma elem_of_h: forall h t, 
+  elem_of (h :: t) h = true.
+Proof.
+  intros h t.
+  simpl.
+  destruct (eqbP h h) as [Hr | Hr].
+  - reflexivity.
+  - exfalso. apply Hr. reflexivity.
+Qed.
+
+Lemma n_eq_n: forall n, n =? n = true.
+Proof.
+  intros n.
+  destruct (eqbP n n) as [Hl | Hr].
+  - reflexivity.
+  - exfalso. apply Hr. reflexivity.
+Qed.
+
+Lemma if_with_same_res: forall A (b : bool) (r: A), (if b then r else r) = r.
+Proof.
+  intros A b r.
+  destruct b.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
+Lemma add_existed: forall n l, 
+  In n l -> (forall x, elem_of (n :: l) x = elem_of l x).
+Proof.
+  intros n l H x.
+  simpl.
+  destruct (eqbP n x) as [Hl | Hr].
+  - rewrite <- Hl.
+    destruct (inP n l) as [Hl' | Hr'].
+    + reflexivity.
+    + exfalso. apply Hr'. apply H.
+  - reflexivity.
+Qed.
+
+Lemma filter_lemm: forall n l m, 
+  In n l -> filter (elem_of (n :: l)) m = filter (elem_of l) m.
+Proof.
+  intros n l m H.
+  simpl.
+  induction m as [| mh mt IH].
   - reflexivity.
   - simpl.
-    destruct (eqbP n n).
-Admitted.
+    destruct (eqbP n mh) as [Hl | Hr].
+    + rewrite <- Hl.
+      destruct (inP n l) as [Hl' | Hr'].
+      * rewrite <- IH. reflexivity.
+      * exfalso. apply Hr'. apply H.
+    + rewrite -> IH. reflexivity.
+Qed.
+  
+Lemma tst: forall n p l, ~ In n l -> filter (fun x : nat => if n =? x then true else p x) l = filter p l.
+Proof.
+  intros n p l H.
+  induction l as [| h t IH].
+  - reflexivity.
+  - simpl.
+    destruct (eqbP n h).
+    + exfalso. apply H. simpl. left. rewrite -> H0. reflexivity.
+    + assert (G: ~ In n t). {
+        simpl in H.
+        apply neg_app in H.
+        destruct H as [Hl Hr].
+        apply Hr.
+      }
+      rewrite -> (IH G).
+      reflexivity.
+Qed.
+
+Theorem filter_preserve_ord: forall l1 l2 lr, 
+  in_order_merged l1 l2 lr -> (forall x, In x l1 -> ~(In x l2)) -> (forall x, In x l2 -> ~(In x l1)) -> filter (elem_of l1) lr = l1.
+Proof.
+  intros l1 l2 lr H Hexcl Hexcl'.
+  induction H as [| n l1' l2' lr' H' IH| n l1' l2' lr' H' IH].
+  - reflexivity.
+  - destruct (inP n l1') as [Hl | Hr].
+    + rewrite -> (filter_lemm _ _ _ Hl).
+      simpl.
+      assert (G: elem_of l1' n = true). {
+        destruct (inP n l1').
+        - reflexivity.
+        - exfalso. apply H. apply Hl.
+      }
+      rewrite -> G.
+      assert (G': forall x : nat, In x l1' -> ~ In x l2'). {
+        intros x HIn.
+        apply Hexcl.
+        simpl. right. apply HIn.
+      }
+      assert (G'2: forall x : nat, In x l2' -> ~ In x l1'). {
+        intros x HIn.
+        apply Hexcl' in HIn.
+        simpl in HIn.
+        rewrite -> neg_app in HIn.
+        destruct HIn as [HInl HInr].
+        apply HInr.
+      }
+      rewrite -> (IH G' G'2).
+      reflexivity.
+    + simpl.
+      rewrite -> n_eq_n.
+      assert (Hnl2': ~ In n l2'). {
+        apply Hexcl.
+        simpl. left. reflexivity.
+      }
+      assert (Hnlr': ~ In n lr'). {
+        apply (sum_nas_no_item _ _ _ _ _ H').
+        split. apply Hr. apply Hnl2'.
+      }
+      rewrite -> (tst n (elem_of l1') lr' Hnlr').
+      assert (G: forall x : nat, In x l1' -> ~ In x l2'). {
+        intros x H.
+        apply Hexcl.
+        simpl.
+        right. apply H.
+      }
+      assert (G': forall x : nat, In x l2' -> ~ In x l1'). {
+        intros x H.
+        apply Hexcl' in H.
+        simpl in H.
+        rewrite -> neg_app in H.
+        destruct H as [HInl HInr].
+        apply HInr.
+      }
+      rewrite -> (IH G G').
+      reflexivity.
+  - simpl.
+    destruct (inP n l1') as [Hl | Hr].
+    + apply Hexcl in Hl.
+      simpl in Hl.
+      rewrite -> neg_app in Hl.
+      destruct Hl as [Hll Hlr].
+      exfalso. apply Hll. reflexivity.
+    + assert (G: forall x : nat, In x l1' -> ~ In x l2'). {
+        intros x H.
+        apply Hexcl in H.
+        simpl in H.
+        rewrite -> neg_app in H.
+        destruct H as [Hl' Hr'].
+        apply Hr'.
+      }
+      assert (G': forall x : nat, In x l2' -> ~ In x l1'). {
+        intros x H.
+        apply Hexcl'.
+        simpl.
+        right. apply H.
+      }
+      rewrite -> (IH G G').
+      reflexivity.
+Qed.
+
+
 
 End InOrderMerged.
 
