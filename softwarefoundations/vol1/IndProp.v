@@ -1974,10 +1974,20 @@ Proof.
       reflexivity.
 Qed.
 
-Theorem filter_preserve_ord: forall l1 l2 lr, 
-  in_order_merged l1 l2 lr -> (forall x, In x l1 -> ~(In x l2)) -> (forall x, In x l2 -> ~(In x l1)) -> filter (elem_of l1) lr = l1.
+Lemma exclusion_rev: forall A (l1 l2 : list A), 
+  (forall x, In x l1 -> ~(In x l2)) -> (forall x, In x l2 -> ~(In x l1)).
 Proof.
-  intros l1 l2 lr H Hexcl Hexcl'.
+  intros A l1 l2 H x H2.
+  unfold not.
+  intros G.
+  apply (H x G).
+  apply H2.
+Qed.
+
+Theorem filter_preserve_ord: forall l1 l2 lr, 
+  in_order_merged l1 l2 lr -> (forall x, In x l1 -> ~(In x l2)) -> filter (elem_of l1) lr = l1.
+Proof.
+  intros l1 l2 lr H Hexcl.
   induction H as [| n l1' l2' lr' H' IH| n l1' l2' lr' H' IH].
   - reflexivity.
   - destruct (inP n l1') as [Hl | Hr].
@@ -1994,15 +2004,7 @@ Proof.
         apply Hexcl.
         simpl. right. apply HIn.
       }
-      assert (G'2: forall x : nat, In x l2' -> ~ In x l1'). {
-        intros x HIn.
-        apply Hexcl' in HIn.
-        simpl in HIn.
-        rewrite -> neg_app in HIn.
-        destruct HIn as [HInl HInr].
-        apply HInr.
-      }
-      rewrite -> (IH G' G'2).
+      rewrite -> (IH G').
       reflexivity.
     + simpl.
       rewrite -> n_eq_n.
@@ -2021,15 +2023,7 @@ Proof.
         simpl.
         right. apply H.
       }
-      assert (G': forall x : nat, In x l2' -> ~ In x l1'). {
-        intros x H.
-        apply Hexcl' in H.
-        simpl in H.
-        rewrite -> neg_app in H.
-        destruct H as [HInl HInr].
-        apply HInr.
-      }
-      rewrite -> (IH G G').
+      rewrite -> (IH G).
       reflexivity.
   - simpl.
     destruct (inP n l1') as [Hl | Hr].
@@ -2046,17 +2040,9 @@ Proof.
         destruct H as [Hl' Hr'].
         apply Hr'.
       }
-      assert (G': forall x : nat, In x l2' -> ~ In x l1'). {
-        intros x H.
-        apply Hexcl'.
-        simpl.
-        right. apply H.
-      }
-      rewrite -> (IH G G').
+      rewrite -> (IH G).
       reflexivity.
 Qed.
-
-
 
 End InOrderMerged.
 
