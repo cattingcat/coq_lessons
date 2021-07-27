@@ -2288,7 +2288,6 @@ Proof.
   - intros a b. simpl. rewrite <- (IH a b). reflexivity.
 Qed.
 
-
 Lemma list_split: forall {X: Type} (l: list X),
   (exists l1   l2, length l1 = length l2 /\ l = l1 ++        l2) \/ 
   (exists l1 c l2, length l1 = length l2 /\ l = l1 ++ [c] ++ l2).
@@ -2474,8 +2473,6 @@ Proof.
           simpl in EqL.
           rewrite -> EqL in H.
           rewrite -> (app_assoc _ t [c] l') in H.
-          (*rewrite -> (app_assoc) in H.*)
-          (*rewrite <- (app_assoc) in H.*)
           destruct (step_rev (t ++ [c] ++ l') h H) as [H'].
           reflexivity.
         }
@@ -2485,6 +2482,96 @@ Qed.
 
 
 End Pal.
+
+Definition disjoint {X: Type} (l1 l2 : list X): Prop := 
+  forall (a: X), In a l1 -> ~(In a l2).
+
+Inductive NoDup {X: Type} : list X -> Prop :=
+  | emptyNoDup : NoDup []
+  | consNoDup (l: list X) (x: X) (H: NoDup l) (N: ~(In x l)) : NoDup (x :: l)
+.
+
+Search or.
+
+Lemma not_in_sum: forall {X: Type} (x: X) (a b: list X), 
+  ~ In x a /\ ~ In x b -> ~ In x (a ++ b).
+Proof.
+  intros X x a b [Ha Hb].
+  induction a as [| h t IH].
+  - simpl. apply Hb.
+  - simpl.
+    simpl in Ha.
+    assert (G: forall A B, ~(A \/ B) -> ~A /\ ~B). {
+      intros A B H.
+      unfold not in H.
+      split.
+      + unfold not. intros HA. apply H. apply (or_introl HA).
+      + unfold not. intros HB. apply H. apply (or_intror HB).
+    }
+    unfold not.
+    intros [Hl | Hr].
+    + apply (Ha (or_introl Hl)).
+    + apply G in Ha.
+      destruct Ha as [Hal Har].
+      apply IH.
+      apply Har.
+      apply Hr.
+Qed.
+
+
+
+Theorem no_dup_in_concat: forall {X: Type} (l1 l2: list X), 
+  NoDup l1 /\ NoDup l2 /\ disjoint l1 l2 -> NoDup (l1 ++ l2).
+Proof.
+  intros X l1 l2 [Hnd1 [Hnd2 Hd]].
+  induction l1 as [| h t IH].
+  - simpl. apply Hnd2.
+  - assert (G: NoDup t). {
+      remember (h :: t) as k.
+      destruct Hnd1 as [| l x H' N'] eqn:E.
+      + discriminate Heqk.
+      + injection Heqk as Heqk1 Heqk2.
+        rewrite <- Heqk2.
+        apply H'.
+    }
+    assert (G1: disjoint t l2). {
+      unfold disjoint.
+      unfold disjoint in Hd.
+      simpl in Hd.
+      intros a Inat.
+      apply (Hd a (or_intror Inat)).
+    }
+    assert (G2': ~ In h l2). {
+      unfold disjoint in Hd.
+      apply Hd.
+      simpl. left. reflexivity.
+    }
+    assert (G2'': ~ In h t). {
+      remember (h :: t) as k.
+      destruct Hnd1 as [| l x H' N'] eqn:E.
+      - discriminate Heqk.
+      - injection Heqk as Heqk1 Heqk2.
+        rewrite <- Heqk2.
+        rewrite <- Heqk1.
+        apply N'.
+    }
+    assert (G2: ~ In h (t ++ l2)). {
+      unfold disjoint in Hd.
+      apply not_in_sum.
+      split.
+      + apply G2''.
+      + apply G2'.
+    }
+    simpl.
+    apply (consNoDup (t ++ l2) h (IH G G1)).
+    apply G2.
+Qed.
+
+
+
+
+
+
 
 
 
