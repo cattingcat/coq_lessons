@@ -2046,6 +2046,445 @@ Qed.
 
 End InOrderMerged.
 
+(*
+A different way to characterize the behavior of filter goes like this: 
+  Among all subsequences of l with the property that test 
+  evaluates to true on all their members, filter test l is 
+  the longest. Formalize this claim and prove it. 
+*)
+
+
+Module Pal.
+
+Inductive pal {X:Type} : list X -> Prop :=
+  | empty : pal nil 
+  | one (c : X) : pal [c]
+  | step (c: X) (l: list X) (H: pal l): pal (c :: l ++ [c])
+.
+
+Example pal_e1: pal [1; 2; 3; 3; 2; 1].
+Proof. Admitted.
+
+Theorem pal_app_rev: forall {X:Type} (l: list X), 
+  pal (l ++ rev l).
+Proof.
+  intros X l.
+  induction l as [|h t IH].
+  - simpl. apply empty.
+  - simpl. 
+    assert (G: (h :: t ++ rev t ++ [h]) = (h :: (t ++ rev t) ++ [h])). {
+      rewrite <- (app_assoc ).
+      reflexivity.
+    }
+    rewrite -> G.
+    apply step.
+    apply IH.
+Qed.
+
+Lemma Geq: forall {X: Type} (l1 l2 l3: list X), 
+  l1 = l2 -> l1 ++ l3 = l2 ++ l3.
+Proof.
+  intros X l1 l2 l3 H.
+  rewrite -> H.
+  reflexivity.
+Qed.
+
+Lemma Rev_concat: forall {X: Type} l (c: X), 
+  rev (l ++ [c]) = c :: (rev l).
+Proof.
+  intros X l c.
+  induction l as [| h t IH].
+  - reflexivity.
+  - simpl. 
+    apply (Geq (rev (t ++ [c])) (c :: rev t) [h]).
+    apply IH.
+Qed.
+
+Lemma concat_inj: forall {X: Type} (l1 l2: list X) (x1 x2: X),
+  l1 ++ [x1] = l2 ++ [x2] -> l1 = l2 /\ x1 = x2.
+Proof.
+  intros X l1.
+  induction l1 as [| h t IH].
+  - simpl.
+    destruct l2 as [| l2h l2t ] eqn: El2.
+    + simpl.
+      intros x1 x2 H.
+      split.
+      * reflexivity.
+      * injection H as H'.
+        apply H'.
+    + intros x1 x2.
+      simpl.
+      intros H.
+      injection H as H1 H2.
+      destruct l2t as [|l2th l2tt].
+      * simpl in H2. discriminate H2.
+      * simpl in H2. discriminate H2.
+  - simpl.
+    intros l2 x1 x2 H.
+    destruct l2 as [| l2h l2t] eqn:El2.
+    + simpl in H.
+      injection H as H'1 H'2.
+      destruct t as [| th tt ] eqn:Et.
+      * simpl in H'2. discriminate H'2.
+      * simpl in H'2. discriminate H'2.
+    + simpl in H.
+      injection H as H'1 H'2.
+      destruct (IH l2t x1 x2 H'2) as [G1 G2].
+      split.
+      * rewrite <- H'1.
+        rewrite <- G1.
+        reflexivity.
+      * apply G2.
+Qed.
+
+Theorem pal_rev: forall {X: Type} (l: list X),
+  pal l -> l = rev l.
+Proof.
+  intros X l H.
+  induction H as [| c | c l H' IH].
+  - simpl. reflexivity.
+  - simpl. reflexivity.
+  - simpl.
+    apply (Geq (c ::l) (rev (l ++ [c])) [c]).
+    rewrite -> Rev_concat.
+    rewrite <- IH.
+    reflexivity.
+Qed.
+
+(*
+Lemma tst: forall {X: Type} l m (x: X), 
+  x :: l = m ++ [x] -> ((l = nil /\ m = nil) \/ (exists l', l = l' ++ [x] /\ m = x :: l')).
+Proof.
+  intros X l m x H.
+  generalize dependent m.
+  generalize dependent x.
+  destruct l as [| h t ].
+  - left. split.
+    + reflexivity.
+    + destruct m as [| mh mt] eqn:Em.
+      * reflexivity.
+      * simpl in H.
+        injection H as InjH.
+        destruct mt as [| mtH mtT].
+        -- simpl in H. discriminate H.
+        -- simpl in H. discriminate H.
+  - intros x m H.
+    assert(G: exists k, m = x :: k). {
+      destruct m as [| mh mt].
+      + simpl in H. injection H as H'. discriminate H'.
+      + simpl in H. injection H as H'.
+        exists mt. 
+        rewrite -> H'.
+        reflexivity.
+    }
+    destruct G as [k Hm].
+    right.
+    exists k.
+    split.
+    + rewrite -> Hm in H.
+      simpl in H.
+      injection H as Hr.
+      apply Hr.
+    + apply Hm.
+Qed.
+*)
+
+Lemma rev_empty: forall {X: Type} (l: list X), 
+  rev l = [] -> l = [].
+Proof.
+  intros X l H.
+  destruct l as [|h t] eqn:El.
+  - reflexivity.
+  - simpl in H. 
+    destruct (rev t) as [| rh rt] eqn:Erev.
+    + simpl in H.
+      discriminate H.
+    + simpl in H.
+      discriminate H.
+Qed.
+
+Lemma destruct_last: forall {X: Type} (l: list X),
+  l = [] \/ exists l' t, l = l' ++ [t].
+Proof.
+  intros X l.
+  induction l as [|h t IH].
+  - left. reflexivity.
+  - right.
+    destruct IH as [IHl | IHr].
+    + exists [].
+      exists h.
+      rewrite -> IHl.
+      reflexivity.
+    + destruct IHr as [lH [tH Hh]].
+      exists (h :: lH).
+      exists tH.
+      simpl.
+      rewrite <- Hh.
+      reflexivity.
+Qed.
+
+Lemma rev_add_last: forall {X: Type} l (t: X), 
+  rev (l ++ [t]) = t :: (rev l).
+Proof.
+  intros X l.
+  induction l as [| lh lt IH].
+  - intros t. simpl. reflexivity.
+  - intros t. simpl.
+    rewrite -> IH.
+    simpl.
+    reflexivity.
+Qed.
+(*
+Lemma tst3 : forall {X: Type} (h: X) l,
+  h :: l = rev (h :: l) -> l = [] \/ exists l', l' = rev l' /\ h :: l' ++ [h] = h :: l.
+Proof.
+  intros X h l H.
+  simpl in H.
+  destruct (rev l) as [|revH revT] eqn:Erev.
+  - apply rev_empty in Erev.
+    left. apply Erev.
+  - right.
+    exists revT.
+    split.
+    + destruct (destruct_last l) as [H1 | H2].
+      * rewrite -> H1 in Erev.
+        simpl in Erev.
+        discriminate Erev.
+      * destruct H2 as [lStart [lLast lEq]].
+        rewrite -> lEq in H.
+        rewrite -> lEq in Erev.
+        assert (G1: rev lStart = revT). {
+          rewrite -> rev_add_last in Erev.
+          injection Erev as Erev'1 Erev'2.
+          apply Erev'2.
+        }
+        assert (G2: lStart = revT). {
+          simpl in H.
+          injection H as H'1 H'2.
+          destruct (concat_inj lStart revT lLast h H'2) as [ErevT Eh].
+          apply ErevT.
+        }
+        rewrite -> G2 in G1.
+        symmetry.
+        apply G1.
+    + assert (G: revT ++ [h] = l -> h :: revT ++ [h] = h :: l). {
+        intros Hg.
+        rewrite -> Hg.
+        reflexivity.
+      }
+      apply G.
+      simpl in H.
+      injection H as H'1 H'2.
+      symmetry. apply H'2.
+Qed.
+*)
+Lemma add_any_side_same_len: forall {X: Type} (l: list X) (a b: X), 
+  length (a :: l) = length (l ++ [b]).
+Proof.
+  intros X l.
+  induction l as [| h t IH].
+  - intros a b. reflexivity.
+  - intros a b. simpl. rewrite <- (IH a b). reflexivity.
+Qed.
+
+
+Lemma list_split: forall {X: Type} (l: list X),
+  (exists l1   l2, length l1 = length l2 /\ l = l1 ++        l2) \/ 
+  (exists l1 c l2, length l1 = length l2 /\ l = l1 ++ [c] ++ l2).
+Proof.
+  intros X l.
+  induction l as [| h t IH].
+  - left. exists []. exists [].
+    simpl.
+    split.
+    + reflexivity.
+    + reflexivity.
+  - assert (G: forall l m, l = m -> h :: l = h :: m). {
+      intros l m Hg.
+      rewrite -> Hg. 
+      reflexivity.
+    }
+    destruct IH as [[l1 [l2 H ]] | [l1 [c [l2 H]]]].
+    + right.
+      destruct (destruct_last l1) as [Hd | Hd].
+      * exists []. exists h. exists [].
+        simpl.
+        rewrite -> Hd in H.
+        simpl in H.
+        destruct H as [H1 H2].
+        assert (G': l2 = []). {
+          destruct l2 as [| hl2 tl2].
+          - reflexivity.
+          - simpl in H1. discriminate H1.
+        }
+        rewrite -> G' in H2.
+        split. reflexivity. rewrite -> H2. reflexivity.
+      * destruct Hd as [l' [t' Hl1]].
+        exists (h :: l').
+        exists t'.
+        exists l2.
+        destruct H as [H1 H2].
+        split.
+        -- rewrite -> (add_any_side_same_len l' h t').
+           rewrite <- Hl1.
+           apply H1.
+        -- rewrite -> H2.
+           rewrite -> Hl1.
+           simpl.
+           apply G.
+           rewrite -> app_assoc.
+           simpl.
+           reflexivity.
+    + left.
+      exists (h :: l1).
+      exists (c :: l2).
+      destruct H as [H1 H2].
+      split.
+      * simpl. rewrite -> H1. reflexivity.
+      * simpl. rewrite -> H2.
+        apply G.
+        simpl.
+        reflexivity.
+Qed.
+
+Lemma len_add_last: forall {X: Type} l (x: X), 
+  length (l ++ [x]) = S (length l).
+Proof.
+  intros X l x.
+  rewrite <- (add_any_side_same_len l x x).
+  reflexivity.
+Qed.
+
+
+Lemma step_rev: forall {X: Type} l (x: X), 
+  (x :: l ++ [x]) = rev (x :: l ++ [x]) -> l = rev l.
+Proof.
+  intros X l x H.
+  simpl in H.
+  rewrite -> rev_add_last in H.
+  simpl in H.
+  injection H as H1.
+  destruct (concat_inj l (rev l) x x H1).
+  apply H.
+Qed.
+
+Theorem pal_rev': forall {X: Type} (l : list X), 
+  l = rev l -> pal l.
+Proof.
+  intros X l H.
+  destruct (list_split l) as [Hl | Hr].
+  - destruct Hl as [l1 [l2 [EqLen EqL ]]].
+    generalize dependent l.
+    generalize dependent l2.
+    induction l1 as [| h t IH].
+    + intros l2 EqLen l H EqL.
+      assert (Hl2Empty: l2 = []). {
+        simpl in EqLen.
+        destruct l2 as [| l2h l2t].
+        - reflexivity.
+        - simpl in EqLen. discriminate EqLen.
+      }
+      rewrite -> Hl2Empty in EqL.
+      simpl in EqL.
+      rewrite -> EqL.
+      apply empty.
+    + intros l2 EqLen l H EqL.
+      destruct (destruct_last l2) as [Hd | Hd].
+      * rewrite -> Hd in EqLen. discriminate EqLen.
+      * destruct Hd as [l' [h' El2]].
+        rewrite -> El2 in EqL.
+        assert (G: h = h'). {
+          rewrite -> EqL in H.
+          rewrite <- (app_assoc) in H.
+          rewrite -> (rev_add_last ((h :: t) ++ l') h') in H.
+          rewrite -> (app_assoc) in H.
+          simpl in H.
+          injection H as H1.
+          apply H1.
+        }
+        rewrite <- G in EqL.
+        rewrite -> EqL.
+        simpl.
+        rewrite <- (app_assoc).
+        apply step.
+        assert (G1: length t = length l'). {
+          rewrite -> El2 in EqLen.
+          rewrite -> len_add_last in EqLen.
+          simpl.
+          injection EqLen as EqLen'.
+          apply EqLen'.
+        }
+        assert (G2: (t ++ l') = rev (t ++ l')). {
+          simpl in EqL.
+          rewrite -> EqL in H.
+          rewrite <- (app_assoc) in H.
+          destruct (step_rev (t ++ l') h H) as [H'].
+          reflexivity.
+        }
+        apply (IH l' G1 (t ++ l') G2).
+        reflexivity.
+  - destruct Hr as [l1 [c [l2 [EqLen EqL ]]]].
+    generalize dependent l.
+    generalize dependent l2.
+    induction l1 as [| h t IH].
+    + intros l2 EqLen l H EqL.
+      assert (Hl2Empty: l2 = []). {
+        simpl in EqLen.
+        destruct l2 as [| l2h l2t].
+        - reflexivity.
+        - simpl in EqLen. discriminate EqLen.
+      }
+      rewrite -> Hl2Empty in EqL.
+      simpl in EqL.
+      rewrite -> EqL.
+      apply one.
+    + intros l2 EqLen l H EqL.
+      destruct (destruct_last l2) as [Hd | Hd].
+      * rewrite -> Hd in EqLen. discriminate EqLen.
+      * destruct Hd as [l' [h' El2]].
+        rewrite -> El2 in EqL.
+        assert (G: h = h'). {
+          rewrite -> EqL in H.
+          rewrite <- (app_assoc) in H.
+          rewrite <- (app_assoc) in H.
+          rewrite -> (rev_add_last (((h :: t) ++ [c]) ++ l') h') in H.
+          rewrite -> (app_assoc) in H.
+          simpl in H.
+          injection H as H1.
+          apply H1.
+        }
+        rewrite <- G in EqL.
+        rewrite -> EqL.
+        rewrite <- (app_assoc).
+        rewrite <- (app_assoc).
+        simpl.
+        apply step.
+        rewrite -> (app_assoc).
+        assert (G1: length t = length l'). {
+          rewrite -> El2 in EqLen.
+          rewrite -> len_add_last in EqLen.
+          simpl.
+          injection EqLen as EqLen'.
+          apply EqLen'.
+        }
+        assert (G2: (t ++ [c] ++ l') = rev (t ++ [c] ++ l')). {
+          rewrite <- (app_assoc) in EqL.
+          rewrite <- (app_assoc) in EqL.
+          simpl in EqL.
+          rewrite -> EqL in H.
+          rewrite -> (app_assoc _ t [c] l') in H.
+          (*rewrite -> (app_assoc) in H.*)
+          (*rewrite <- (app_assoc) in H.*)
+          destruct (step_rev (t ++ [c] ++ l') h H) as [H'].
+          reflexivity.
+        }
+        apply (IH l' G1 (t ++ [c] ++ l') G2).
+        reflexivity.
+Qed.
+
+
+End Pal.
 
 
 
