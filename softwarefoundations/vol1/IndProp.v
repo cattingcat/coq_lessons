@@ -2569,7 +2569,277 @@ Qed.
 
 
 
+Module PigeonHoles.
+Lemma in_split : forall (X:Type) (x:X) (l:list X),
+  In x l -> exists l1 l2, l = l1 ++ x :: l2.
+Proof.
+  intros X x l H.
+  induction l as [| h t IH].
+  - simpl in H. exfalso. apply H.
+  - simpl in H.
+    destruct H as [Hl | Hr].
+    + rewrite <- Hl.
+      exists [].
+      exists t.
+      reflexivity.
+    + destruct (IH Hr) as [l1 [l2 H']].
+      exists (h :: l1).
+      exists l2.
+      simpl.
+      rewrite <- H'.
+      reflexivity.
+Qed.
 
+Inductive repeats {X:Type} : list X -> Prop :=
+  | add_repeated    (l: list X) (x: X) (H: In x l):    repeats (x :: l)
+  | add_to_repeated (l: list X) (x: X) (H: repeats l): repeats (x :: l) 
+.
+
+
+Search "<".
+
+(* PeanoNat.Nat.nlt_0_r *)
+Lemma nothing_less_0: forall n, n < 0 -> False.
+Proof.
+  intros n H.
+Admitted.
+
+
+Definition contains_items {X: Type} (l2 l1: list X) := 
+  (forall x : X, In x l1 -> In x l2).
+
+
+Inductive uniques {X:Type} : list X -> Prop :=
+  | nil_unique : uniques []
+  | add_unique (l: list X) (x: X) (H: ~ In x l): uniques (x :: l)
+.
+
+Lemma unique_shorter: forall {X: Type} (l1 l2: list X),
+  contains_items l2 l1 -> uniques l2 -> length l2 <= length l1.
+Proof. Admitted.
+
+Search (length ?l = 0 -> ?l = []).
+
+
+Lemma remove_uniq_item: forall {X: Type} l (x: X), 
+  ~(repeats l) -> In x l -> 
+  exists l', ~ In x l' /\ S (length l') = length l /\ (~ repeats l') /\ contains_items l l'.
+Proof.
+  intros X l x Hnr Hin.
+  induction l as [| h t IH].
+  - simpl in Hin. exfalso. apply Hin.
+  - simpl in Hin.
+    destruct Hin as [Ehx | Hxint] eqn:Ehin.
+    + exists t.
+      split.
+      * intros Hxint.
+        rewrite <- Ehx in Hxint.
+        apply Hnr.
+        apply add_repeated.
+        apply Hxint.
+      * split.
+        ** reflexivity.
+        ** split.
+           *** intros Hrt. apply Hnr. apply add_to_repeated. apply Hrt.
+           *** unfold contains_items.
+               intros x' Hx'int. simpl.
+               right. apply Hx'int.
+    + assert (G: ~ repeats t). {
+        intros Hrt. apply Hnr. apply add_to_repeated. apply Hrt.
+      }
+      destruct (IH G Hxint) as [l' Hs].
+      exists (h :: l').
+      split.
+      * intros Hxinhl'. simpl in Hxinhl'.
+        destruct Hxinhl' as [Ehx | Hxinl'].
+        ** rewrite -> Ehx in Hnr.
+           apply Hnr. apply add_repeated. apply Hxint.
+        ** destruct Hs as [Hxninl' Q].
+           apply Hxninl'. apply Hxinl'.
+      * split.
+        ** simpl. 
+           destruct Hs as [Q [Hlenl't W]].
+           rewrite <- Hlenl't.
+           reflexivity.
+        ** split.
+           *** intros Hrhl'.
+               remember (h :: l') as k eqn:Ek.
+               destruct Hrhl' as [dl' dh dG | dl' dh dG].
+               **** injection Ek as Ehdh Eldl.
+                    rewrite -> Ehdh in dG.
+                    rewrite -> Eldl in dG.
+                    destruct Hs as [_ [_ [_ Hci]]].
+                    unfold contains_items in Hci.
+                    apply Hnr.
+                    apply add_repeated.
+                    apply (Hci h dG).
+               **** injection Ek as Ehdh Eldl.
+                    rewrite -> Eldl in dG.
+                    destruct Hs as [_ [_ [Hnrl' _]]].
+                    apply Hnrl'. apply dG.
+           *** unfold contains_items.
+               intros x' Hinx'hl'.
+               simpl in Hinx'hl'.
+               simpl.
+               destruct Hinx'hl' as [Ehx' | Hx'int].
+               **** left. apply Ehx'.
+               **** right. destruct Hs as [_ [_ [_ Hci]]]. apply Hci. apply Hx'int.
+Qed.
+
+Lemma remove_item: forall {X: Type} l (x: X), 
+  In x l -> 
+  exists l', S (length l') = length l /\ contains_items l l' /\ (forall i : X, In i l -> (i = x) \/ In i l').
+Proof.
+  intros X l x Hxinl.
+  induction l as [| h t IH].
+  - simpl in Hxinl. exfalso. apply Hxinl.
+  - simpl in Hxinl.
+    destruct Hxinl as [Ehx | Hxint].
+    + exists t.
+      simpl. split.
+      * reflexivity.
+      * split.
+        ++ unfold contains_items. simpl.
+           intros j Hj. right. apply Hj.
+        ++ intros x' [Hx'l | Hx'r].
+            ** rewrite <- Hx'l.
+               left. apply Ehx.
+            ** right. apply Hx'r.
+    + destruct (IH Hxint) as [l' [Hlen [Hci Hcirev]]].
+      exists (h :: l').
+      split.
+      * simpl. rewrite -> Hlen. reflexivity.
+      * split.
+        ++ unfold contains_items. simpl.
+            intros x' [Geq | Gin].
+            +++ left. apply Geq.
+            +++ right. apply (Hci x' Gin).
+        ++ intros x' Hiinht.
+           destruct Hiinht as [Hx'h | Hx'int].
+           -- right. simpl. left. apply Hx'h.
+           -- apply (Hcirev x') in Hx'int.
+              destruct Hx'int as [Hx'intl | Hx'intr].
+              --- left. apply Hx'intl.
+              --- right. simpl. right. apply Hx'intr.
+Qed.
+
+
+(*
+Lemma same_items: forall {X: Type} (l1 l2: list X),
+  length l1 = length l2 -> 
+  ~(repeats l1) -> 
+  contains_items l2 l1 -> 
+  contains_items l1 l2.
+Proof.
+  intros X l1.
+  induction l1 as [| h t IH].
+  - intros l2 Hlen Hnr Hci.
+    assert (G: l2 = []). {
+      remember [] as k eqn: Ek.
+      destruct l2 as [| h' t' ].
+      + rewrite -> Ek. reflexivity.
+      + rewrite -> Ek in Hlen. simpl in Hlen. discriminate Hlen.
+    }
+    rewrite -> G in Hci.
+    rewrite -> G.
+    apply Hci.
+  - intros l2 Hlen Hnr Hci.
+    unfold contains_items.
+    intros x Hxl2.
+    simpl.
+    unfold contains_items in IH.
+    destruct l2 as [| l2h l2t].
+    + simpl in Hlen. discriminate Hlen.
+    + 
+*)
+
+Lemma step_contains_items:forall {X: Type} l (h: X) t,
+  contains_items l (h :: t) -> contains_items l t.
+Proof.
+  intros X l h t.
+  unfold contains_items.
+  simpl.
+  intros H.
+  intros x H'.
+  apply (H x (or_intror H')).
+Qed.
+
+Definition excluded_middle := forall P : Prop, P \/ ~P.
+
+Lemma empty_nas_no_repeats: forall {X: Type}, repeats (@nil X) -> False.
+Proof.
+  intros X H.
+  remember [] as k eqn:Ek.
+  destruct H as [l x H' | l x H'].
+  - discriminate Ek.
+  - discriminate Ek.
+Qed.
+
+Lemma tst: forall {X: Type} (l1 l2: list X) (x: X), 
+  excluded_middle ->
+  length l1 = length l2 -> contains_items l2 (x :: l1) 
+  -> repeats (x :: l1).
+Proof.
+  intros X l1.
+  induction l1 as [| h t IH].
+  - intros l2 x EM Hlen Hci.
+    assert (G: l2 = []). {
+      simpl in Hlen.
+      destruct l2 as [| h' t'].
+      + reflexivity.
+      + simpl in Hlen. discriminate Hlen.
+    }
+    rewrite -> G in Hci.
+    unfold contains_items in Hci.
+    simpl in Hci.
+    exfalso. apply (Hci x).
+    left. reflexivity.
+  - intros l2 x EM Hlen Hci.
+    assert (G: In h l2). {
+      unfold contains_items in Hci.
+      apply Hci.
+      simpl. right. left. reflexivity.
+    }
+    assert (G1: repeats (x :: t)). {
+      destruct (remove_item l2 h G) as [l' [Hlen' [Hci' Hcirev]]].
+      apply (IH l' x EM).
+      + rewrite <- Hlen in Hlen'. simpl in Hlen'. injection Hlen' as Hlen'.
+        symmetry. apply Hlen'.
+      + unfold contains_items.
+        intros i Hiin.
+  (*TODO*)
+Admitted.
+
+Theorem pigeonhole_principle: excluded_middle ->
+  forall (X:Type) (l1 l2: list X),
+  (forall x, In x l1 -> In x l2) ->
+  length l2 < length l1 ->
+  repeats l1.
+Proof.
+  intros EM X l1. 
+  induction l1 as [|x l1' IHl1'].
+  - intros l2 HIn HLen.
+    simpl in HLen.
+    exfalso.
+    apply (PeanoNat.Nat.nlt_0_r (length l2) HLen).
+  - intros l2 HIn HLen.
+    remember (length(x :: l1')) as k eqn: Ek.
+    destruct HLen as [| k' HLen'].
+    + simpl in Ek.
+      injection Ek as Ek.
+      symmetry in Ek.
+      apply (tst l1' l2 x EM Ek HIn).
+    + simpl in Ek.
+      injection Ek as Ek.
+      rewrite -> Ek in HLen'.
+      assert (G: repeats l1'). {
+        apply (IHl1' l2 (step_contains_items l2 x l1' HIn) HLen').
+      }
+      apply add_to_repeated.
+      apply G.
+Qed.
+
+End PigeonHoles.
 
 
 
