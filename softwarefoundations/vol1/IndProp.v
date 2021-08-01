@@ -2775,6 +2775,12 @@ Proof.
   - discriminate Ek.
 Qed.
 
+Lemma qwe: forall {X: Type} (l1 l2: list X) (x: X), 
+  length (x :: l1) = length l2 -> contains_items l2 (x :: l1) -> 
+  exists l2', length l1 = length l2' /\ contains_items l2' l1.
+Proof.
+Admitted.
+
 Lemma tst: forall {X: Type} (l1 l2: list X) (x: X), 
   excluded_middle ->
   length l1 = length l2 -> contains_items l2 (x :: l1) 
@@ -2840,9 +2846,6 @@ Proof.
 Qed.
 
 End PigeonHoles.
-
-
-
 
 
 End IndProp.
