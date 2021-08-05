@@ -1515,8 +1515,8 @@ Search (length (?s1 ++ ?s2) = length (?s1) + length (?s2)).
 Search (?a + ?b <= ?c + ?d -> ?a <= ?c \/ ?b <= ?d).
 Search (?a + ?b <= ?c -> ?a <= ?c /\ ?b <= ?c).
 Search (?a <= ?b + ?c -> ?a <= ?b /\ ?a <= ?c).
-Search (plus_le).
-Search (le_plus).
+(*Search (plus_le).
+Search (le_plus).*)
 Lemma plus_le: forall a b c, a + b <= c -> a <= c /\ b <= c.
 Proof. Admitted.
 
