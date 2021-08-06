@@ -213,6 +213,15 @@ Qed.
 
 
 
+Inductive foo'' (X:Type) : Type :=
+  | C1' (l : list X) (f : foo'' X)
+  | C2'.
+
+Check foo''_ind : 
+  forall (X: Type) (P: foo'' X -> Prop),
+    (forall (l: list X) (f: foo'' X), P f -> P (C1' X l f)) ->
+    P (C2' X) ->
+    (forall (f: foo'' X), P f).
 
 
 
