@@ -253,4 +253,58 @@ Proof.
       apply IHclos_refl_trans1.
       apply IHclos_refl_trans2. Qed.
 
+
+
+Inductive clos_refl_trans_1n {A : Type}
+                             (R : relation A) (x : A)
+                             : A -> Prop :=
+  | rt1n_refl : clos_refl_trans_1n R x x
+  | rt1n_trans (y z : A)
+      (Hxy : R x y) (Hrest : clos_refl_trans_1n R y z) :
+      clos_refl_trans_1n R x z.
+
+Lemma rsc_R : forall (X: Type) (R: relation X) (x y : X),
+  R x y -> clos_refl_trans_1n R x y.
+Proof.
+  intros.
+  apply (rt1n_trans R0 x y y H).
+  apply rt1n_refl.
+Qed.
+
+
+Lemma rsc_trans :
+  forall (X: Type) (R: relation X) (x y z : X),
+      clos_refl_trans_1n R x y ->
+      clos_refl_trans_1n R y z ->
+      clos_refl_trans_1n R x z.
+Proof.
+  intros X R x y z Hxy Hyz.
+  induction Hxy as [| y' z' k Hxy' Hr IH] .
+  - apply Hyz.
+  - apply (rt1n_trans R _ _ _ Hxy').
+    apply IH.
+    apply Hyz.
+Qed.
+
+Theorem rtc_rsc_coincide :
+  forall (X:Type) (R: relation X) (x y : X),
+    clos_refl_trans R x y <-> clos_refl_trans_1n R x y.
+Proof.
+  intros X R x y.
+  split.
+  - intro H.
+    induction H as [x' y' Rx'y' | x' |x' y' z' Hx'y' IH1 Hy'z' IH2].
+    + apply (rsc_R _ _ _ _ Rx'y').
+    + apply rt1n_refl.
+    + apply (rsc_trans _ _ _ _ _ IH1 IH2).
+  - intro H.
+    induction H as [|x y z Hxy Hrest IH].
+    + apply rt_refl.
+    + apply rt_trans with y. (* y - term which impossible to deduct *)
+      apply (rt_step _ _ _ Hxy).
+      apply IH.
+Qed.
+
+
+
 End Rel.
