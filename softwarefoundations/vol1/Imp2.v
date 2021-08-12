@@ -343,6 +343,125 @@ Proof.
   inversion Heval. subst. clear Heval. simpl.
   apply t_update_eq. Qed.
 
+Definition XtimesYinZ : com :=
+  <{ Z := X * Y }>.
+Theorem XtimesYinZ_spec : forall st n m st',
+  st X = n ->
+  st Y = m ->
+  st =[ XtimesYinZ ]=> st' ->
+  st' Z = n * m.
+Proof.
+  intros st n m st' HX HY Heval.
+  inversion Heval. subst. clear Heval. simpl.
+  apply t_update_eq. Qed.
+
+
+Definition loop : com :=
+  <{ while true do skip end }>.
+Theorem loop_never_stops : forall st st',
+  ~(st =[ loop ]=> st').
+Proof.
+  intros st st' contra. unfold loop in contra.
+  remember <{ while true do skip end }> as loopdef
+           eqn:Heqloopdef.
+  induction contra.
+  - discriminate Heqloopdef.
+  - discriminate Heqloopdef.
+  - discriminate Heqloopdef.
+  - discriminate Heqloopdef.
+  - discriminate Heqloopdef.
+  - injection Heqloopdef as H1 H2.
+    rewrite H1 in H. simpl in H.
+    discriminate H.
+  - injection Heqloopdef as H1 H2.
+    apply IHcontra2.
+    rewrite H1, H2.
+    reflexivity.
+Qed.
+
+
+
+
+Fixpoint no_whiles (c : com) : bool :=
+  match c with
+  | <{ skip }>                      => true
+  | <{ _ := _ }>                    => true
+  | <{ c1 ; c2 }>                   => andb (no_whiles c1) (no_whiles c2)
+  | <{ if _ then ct else cf end }>  => andb (no_whiles ct) (no_whiles cf)
+  | <{ while _ do _ end }>          => false
+  end.
+
+
+(*  | CSkip
+  | CAsgn (x : string) (a : aexp)
+  | CSeq (c1 c2 : com)
+  | CIf (b : bexp) (c1 c2 : com)
+  | CWhile (b : bexp) (c : com).
+*)
+
+Inductive no_whilesR: com -> Prop :=
+  | NW_Skip : no_whilesR CSkip
+  | NW_Asgn (x: string) (a: aexp) : no_whilesR (CAsgn x a)
+  | NW_Seq (c1 c2 : com) (H1: no_whilesR c1) (H2: no_whilesR c2) : no_whilesR (CSeq c1 c2)
+  | NW_If (b : bexp) (c1 c2 : com) (H1: no_whilesR c1) (H2: no_whilesR c2) : no_whilesR (CIf b c1 c2)
+.
+
+Search (?a && ?b = true -> ?a = true /\ ?b = true).
+  
+
+Theorem no_whiles_eqv:
+  forall c, no_whiles c = true <-> no_whilesR c.
+Proof.
+  intro. split.
+  - intro H.
+    induction c.
+    + apply NW_Skip.
+    + apply NW_Asgn.
+    + simpl in H.
+      apply andb_prop in H.
+      destruct H as [Hl Hr].
+      apply NW_Seq.
+      apply IHc1. apply Hl.
+      apply IHc2. apply Hr.
+    + simpl in H.
+      apply andb_prop in H.
+      destruct H as [Hl Hr].
+      apply NW_If.
+      apply IHc1. apply Hl.
+      apply IHc2. apply Hr.
+    + simpl in H. discriminate H.
+  - intro H.
+    induction H.
+    + reflexivity.
+    + reflexivity.
+    + simpl. rewrite IHno_whilesR1. rewrite IHno_whilesR2. reflexivity.
+    + simpl. rewrite IHno_whilesR1. rewrite IHno_whilesR2. reflexivity.
+Qed.
+
+
+Theorem no_whiles_terminates : forall p st, 
+  no_whilesR p -> exists st', st =[ p ]=> st'.
+Proof.
+  intros.
+  generalize dependent st.
+  induction H.
+  - intros. exists st. apply (E_Skip st).
+  - intros. exists (x !-> (aeval st a) ; st). apply (E_Asgn st a _ ). reflexivity.
+  - intros. 
+    destruct (IHno_whilesR1 st) as [st' H1].
+    destruct (IHno_whilesR2 st') as [st'' H2].
+    exists st''.
+    apply (E_Seq c1 c2 st st' st'' H1 H2).
+  - intros.
+    destruct (beval st b) eqn:E.
+    + destruct (IHno_whilesR1 st) as [st' H1].
+      exists st'. 
+      apply (E_IfTrue st st' b c1 c2 E H1).
+    + destruct (IHno_whilesR2 st) as [st' H1].
+      exists st'. 
+      apply (E_IfFalse st st' b c1 c2 E H1).
+Qed.
+
 
 End AExp.
 
