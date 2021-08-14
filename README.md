@@ -30,3 +30,5 @@ http://www.mi-ras.ru/~sk/lehre/coq/
 https://arxiv.org/abs/1803.06547
 
 https://www.manning.com/books/type-driven-development-with-idris#toc
+
+https://deepspec.org/event/dsss17/
