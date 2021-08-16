@@ -681,3 +681,205 @@ Proof.
   - (* if   *) apply CIf_congruence. apply optimize_0plus_bexp_sound. apply IHc1. apply IHc2.
   - (* whle *) apply CWhile_congruence. apply optimize_0plus_bexp_sound. apply IHc.
 Qed.
+
+
+
+Module Himp.
+
+Inductive com : Type :=
+  | CSkip : com
+  | CAsgn : string -> aexp -> com
+  | CSeq : com -> com -> com
+  | CIf : bexp -> com -> com -> com
+  | CWhile : bexp -> com -> com
+  | CHavoc : string -> com. (* <--- NEW *)
+
+Notation "'havoc' l"  := (CHavoc l)  (in custom com at level 60, l constr at level 0).
+Notation "'skip'"     := CSkip       (in custom com at level 0).
+Notation "x := y"     := (CAsgn x y) (in custom com at level 0, x constr at level 0, y at level 85, no associativity).
+Notation "x ; y"      := (CSeq x y)  (in custom com at level 90, right associativity).
+Notation "'if' x 'then' y 'else' z 'end'" := (CIf x y z)  (in custom com at level 89, x at level 99, y at level 99, z at level 99).
+Notation "'while' x 'do' y 'end'"         := (CWhile x y) (in custom com at level 89, x at level 99, y at level 99).
+
+Reserved Notation "st '=[' c ']=>' st'"
+         (at level 40, c custom com at level 99, st constr,
+          st' constr at next level).
+Inductive ceval : com -> state -> state -> Prop :=
+  | E_Skip : forall st,
+      st =[ skip ]=> st
+  | E_Asgn : forall st a n x,
+      aeval st a = n ->
+      st =[ x := a ]=> (x !-> n ; st)
+  | E_Seq : forall c1 c2 st st' st'',
+      st =[ c1 ]=> st' ->
+      st' =[ c2 ]=> st'' ->
+      st =[ c1 ; c2 ]=> st''
+  | E_IfTrue : forall st st' b c1 c2,
+      beval st b = true ->
+      st =[ c1 ]=> st' ->
+      st =[ if b then c1 else c2 end ]=> st'
+  | E_IfFalse : forall st st' b c1 c2,
+      beval st b = false ->
+      st =[ c2 ]=> st' ->
+      st =[ if b then c1 else c2 end ]=> st'
+  | E_WhileFalse : forall b st c,
+      beval st b = false ->
+      st =[ while b do c end ]=> st
+  | E_WhileTrue : forall st st' st'' b c,
+      beval st b = true ->
+      st =[ c ]=> st' ->
+      st' =[ while b do c end ]=> st'' ->
+      st =[ while b do c end ]=> st''
+  | E_Havoc (n: nat) : forall st x,
+      st =[ CHavoc x ]=> (x !-> n ; st)
+
+  where "st =[ c ]=> st'" := (ceval c st st').
+
+Example havoc_example1 : empty_st =[ havoc X ]=> (X !-> 0).
+Proof. apply (E_Havoc 0). Qed.
+
+Example havoc_example2 : empty_st =[ skip; havoc Z ]=> (Z !-> 42).
+Proof. apply (E_Seq _ _ empty_st empty_st (Z !-> 42)). apply E_Skip. apply (E_Havoc 42). Qed.
+
+Definition cequiv (c1 c2 : com) : Prop := forall st st' : state,
+  st =[ c1 ]=> st' <-> st =[ c2 ]=> st'.
+
+Definition pXY := <{ havoc X ; havoc Y }>.
+Definition pYX := <{ havoc Y ; havoc X }>.
+
+Theorem pXY_cequiv_pYX : cequiv pXY pYX \/ ~cequiv pXY pYX.
+Proof. unfold cequiv.
+  unfold pXY. unfold pYX.
+  left. intros st st'. split; intro H.
+  - inversion H.
+    inversion H5. 
+    inversion H2.
+    subst. 
+    rewrite t_update_permute.
+    apply (E_Seq _ _ st (Y !-> n; st) (X !-> n0; Y !-> n; st)).
+    apply (E_Havoc n).
+    apply (E_Havoc n0).
+    unfold not.
+    intros Hd. discriminate Hd.
+  - inversion H.
+    inversion H5. 
+    inversion H2.
+    subst. 
+    rewrite t_update_permute.
+    apply (E_Seq _ _ st (X !-> n; st) (Y !-> n0; X !-> n; st)).
+    apply (E_Havoc n).
+    apply (E_Havoc n0).
+    unfold not.
+    intros Hd. discriminate Hd. Qed.
+
+
+Definition ptwice := <{ havoc X; havoc Y }>.
+Definition pcopy  := <{ havoc X; Y := X }>.
+
+Theorem ptwice_cequiv_pcopy : cequiv ptwice pcopy \/ ~cequiv ptwice pcopy.
+Proof. unfold cequiv, ptwice, pcopy, not. right. intro H.
+  destruct (H empty_st (Y !-> 0; X !-> 1)).
+  assert (G: empty_st =[ havoc X; havoc Y ]=> (Y !-> 0; X !-> 1)). {
+    apply (E_Seq _ _ _ (X !-> 1) (Y !-> 0; X !-> 1)).
+    apply (E_Havoc 1).
+    apply (E_Havoc 0).
+  }
+  assert (G': empty_st =[ havoc X; Y := X ]=> (Y !-> 0; X !-> 1)). { apply (H0 G). }
+  inversion G'.
+  subst.
+  inversion H7.
+  assert (G1: forall x, (Y !-> n; st') x = (Y !-> 0; X !-> 1) x). { apply equal_f. assumption. }
+  simpl in H6.
+  assert (G2: st' X = 1). { apply (G1 X). }
+  rewrite H6 in G2.
+  assert (G3: n = 0). { unfold t_update in G1. remember (G1 Y) as k. simpl in k. apply k. }
+  rewrite G2 in G3. discriminate G3.
+Qed.
+
+
+
+
+Definition p1 : com :=
+  <{ while ~ (X = 0) do
+       havoc Y;
+       X := X + 1
+     end }>.
+Definition p2 : com :=
+  <{ while ~ (X = 0) do
+       skip
+     end }>.
+
+Lemma p1_may_diverge : forall st st', st X <> 0 -> ~ st =[ p1 ]=> st'.
+Proof. unfold not. intros st st' Hx0 H.
+  remember p1 as k eqn:Ek.
+  induction H; 
+    try (discriminate Ek);
+    try (subst).
+  - (* E_WhileFalse *)
+    unfold p1 in Ek.
+    injection Ek as Ekb Ekc.
+    rewrite -> Ekb in H.
+    simpl in H.
+    apply negb_false_iff in H.
+    apply beq_nat_true in H.
+    apply Hx0. apply H.
+  - (* E_WhileTrue *)
+    unfold p1 in Ek.
+    injection Ek as Ekb Ekc.
+    rewrite Ekb in H.
+    simpl in H.
+    rewrite -> negb_true_iff in H.
+    assert (G: ~ (st' X = 0)). {
+      unfold not. intro Hcont.
+      subst. 
+      inversion H0.
+      subst. 
+      inversion H7.
+      simpl in H8.
+      subst.
+      unfold t_update in Hcont.
+      simpl in Hcont.
+      Search (?a + ?b = ?b + ?a).
+      rewrite add_comm in Hcont.
+      discriminate Hcont.
+    }
+    apply IHceval2.
+    apply G.
+    unfold p1. rewrite Ekb. rewrite Ekc.
+    reflexivity.
+Qed.
+
+Lemma p2_may_diverge : forall st st', st X <> 0 -> ~ st =[ p2 ]=> st'.
+Proof. unfold not. intros st st' Hx0 H.
+  remember p2 as k eqn:Ek.
+  induction H; 
+    try (discriminate Ek);
+    try (subst).
+  - (* E_WhileFalse *)
+    unfold p2 in Ek.
+    injection Ek as Ekb Ekc.
+    rewrite -> Ekb in H.
+    simpl in H.
+    apply negb_false_iff in H.
+    apply beq_nat_true in H.
+    apply Hx0. apply H.
+  - (* E_WhileTrue *)
+    unfold p2 in Ek.
+    injection Ek as Ekb Ekc.
+    rewrite Ekb in H.
+    simpl in H.
+    rewrite -> negb_true_iff in H.
+    assert (G: ~ (st' X = 0)). {
+      unfold not. intro Hcont.
+      subst. 
+      inversion H0.
+      subst.
+      apply Hx0. apply Hcont.
+    }
+    apply IHceval2.
+    apply G.
+    unfold p2. rewrite Ekb. rewrite Ekc.
+    reflexivity.
+Qed.
+
+End Himp.
