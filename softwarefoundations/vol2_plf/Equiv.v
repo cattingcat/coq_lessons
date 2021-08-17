@@ -882,4 +882,84 @@ Proof. unfold not. intros st st' Hx0 H.
     reflexivity.
 Qed.
 
+Search ((?x =? ?n) = true -> ?x = ?n).
+
+Theorem p1_p2_equiv : cequiv p1 p2.
+Proof. unfold cequiv, p1, p2. intros st st'.
+  destruct (st X =? 0) eqn:Hex.
+  - (* X = 0 *)
+    apply beq_nat_true in Hex.
+    split; intro H.
+    + inversion H; subst.
+      * (* WhileFalse *) simpl in H4. apply negb_false_iff in H4.
+        apply (E_WhileFalse ). simpl. apply negb_false_iff. apply H4.
+      * (* WhileTrue *) simpl in H2. apply negb_true_iff in H2.
+        rewrite Hex in H2. discriminate H2.
+    + inversion H; subst.
+      * (* WhileFalse *) simpl in H4. apply negb_false_iff in H4.
+        apply (E_WhileFalse ). simpl. apply negb_false_iff. apply H4.
+      * (* WhileTrue *) simpl in H2. apply negb_true_iff in H2.
+        rewrite Hex in H2. discriminate H2.
+  - apply beq_nat_false in Hex.
+    split; intro H; exfalso.
+    + apply (p1_may_diverge _ _ Hex H).
+    + apply (p2_may_diverge _ _ Hex H).
+Qed.
+
+
+
+Definition p3 : com :=
+  <{ Z := 1;
+     while ~(X = 0) do
+       havoc X;
+       havoc Z
+     end }>.
+Definition p4 : com :=
+  <{ X := 0;
+     Z := 1 }>.
+Theorem p3_p4_inequiv : ~ cequiv p3 p4.
+Proof. unfold not, cequiv, p3, p4. intros H.
+  destruct (H (X !-> 1) (Z !-> 42; X !-> 0)) as [H1 H2].
+  clear H H2.
+  remember (Z !-> 42; X !-> 0; Z !-> 1; X !-> 1) as finalState.
+  assert (G: (X !-> 1) =[ Z := 1; while ~ X = 0 do havoc X; havoc Z end ]=> finalState). {
+    apply (E_Seq _ _ _ (Z !-> 1; X !-> 1) _).
+    apply (E_Asgn). reflexivity.
+    apply (E_WhileTrue (Z !-> 1; X !-> 1) finalState finalState).
+    - (* while cond *) simpl. reflexivity.
+    - (* while body *) apply (E_Seq) with (X !-> 0; Z !-> 1; X !-> 1).
+      apply (E_Havoc 0).
+      rewrite HeqfinalState.
+      apply (E_Havoc 42 (X !-> 0; Z !-> 1; X !-> 1) Z).
+    - (* while newx step *)
+      apply (E_WhileFalse). rewrite HeqfinalState. reflexivity.
+  }
+  assert (G'': finalState = (Z !-> 42; X !-> 0)). {
+    rewrite HeqfinalState.
+    apply functional_extensionality.
+    intro x. unfold t_update.
+    destruct (eqb_string Z x). reflexivity.
+    destruct (eqb_string X x). reflexivity.
+    reflexivity.
+  }
+  assert (G': (X !-> 1) =[ X := 0; Z := 1 ]=> (Z !-> 42; X !-> 0)). { 
+    rewrite G'' in G.
+    apply (H1 G). 
+  }
+  inversion G'. subst.
+  inversion H5. subst. simpl in *.
+  assert (Contra1: (Z !-> 1; st') Z = 1). { unfold t_update. simpl. reflexivity. }
+  assert (Contra2: (Z !-> 1; st') Z = 42). { rewrite H6. unfold t_update. simpl. reflexivity. }
+  rewrite Contra2 in Contra1.
+  discriminate Contra1.
+Qed.
+
+
+
+
+
+
+
+
+
 End Himp.
