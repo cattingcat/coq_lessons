@@ -956,10 +956,177 @@ Qed.
 
 
 
-
-
-
-
-
+Definition p5 : com := <{ while ~(X = 1) do havoc X end }>.
+Definition p6 : com := <{ X := 1 }>.
+Theorem p5_p6_equiv : cequiv p5 p6.
+Proof. unfold cequiv, p5, p6. intros st st'. split; intro H.
+  - remember <{ while ~ X = 1 do havoc X end }> as p5 eqn:Ep5.
+    induction H;
+      try (discriminate Ep5);
+      try (injection Ep5 as Ep5b Ep5c).
+    + (* WhileFalse *)
+      rewrite Ep5b in H. simpl in H. apply negb_false_iff in H. apply beq_nat_true in H.
+      assert (G: st = (X !-> 1; st)). { 
+        apply functional_extensionality. 
+        intro x. unfold t_update. 
+        unfold eqb_string.
+        destruct (string_dec X x) as [Ex' | Ex'] eqn:Ex; subst.
+        apply H.
+        reflexivity.
+      }
+      assert (G': (st =[ X := 1 ]=> st) = (st =[ X := 1 ]=> (X !-> 1; st))). { rewrite <- G. reflexivity. }
+      rewrite -> G'.
+      apply (E_Asgn). reflexivity.
+    + (* WhileTrue *)
+      rewrite Ep5b in H. simpl in H. apply negb_true_iff in H. apply beq_nat_false in H.
+      assert (G: st' =[ X := 1 ]=> st''). {apply IHceval2. rewrite Ep5b. rewrite Ep5c. reflexivity. }
+      clear IHceval1 IHceval2.
+      rewrite Ep5c in H0. inversion H0. subst. 
+      inversion G. subst. simpl.
+      assert (G': (X !-> 1; X !-> n; st) = (X !-> 1; st)). {
+        apply functional_extensionality. intro x.
+        unfold t_update. unfold eqb_string.
+        destruct (string_dec X x) as [Ex' | Ex'] eqn:Ex; subst.
+        - reflexivity.
+        - reflexivity.
+      }
+      rewrite G'.
+      apply E_Asgn.
+      reflexivity.
+  - destruct (beval st <{ ~ X = 1 }>) eqn:Ex.
+    + (* true *)
+      (* apply negb_true_iff in Ex. apply beq_nat_false in Ex. *)
+      apply (E_WhileTrue st (X !-> 1; st) st' _ _ Ex).
+      apply (E_Havoc 1).
+      inversion H. subst. simpl in *.
+      apply (E_WhileFalse).
+      simpl. reflexivity.
+(*     + simpl in Ex. apply negb_false_iff in Ex. apply beq_nat_true in Ex. *)
+    +
+      inversion H. subst. simpl in *.
+      apply negb_false_iff in Ex. apply beq_nat_true in Ex.
+      assert (G: st = (X !-> 1; st)). {
+        apply functional_extensionality. intro x.
+        unfold t_update. unfold eqb_string.
+        destruct (string_dec X x) as [Ex' | Ex'] eqn:Ex''; subst.
+        - apply Ex.
+        - reflexivity.
+      }
+      rewrite <- G.
+      apply (E_WhileFalse).
+      simpl. rewrite Ex. reflexivity.
+Qed.
 
 End Himp.
+
+Module ImpFor.
+
+
+Inductive com : Type :=
+  | CSkip
+  | CAsgn (x : string) (a : aexp)
+  | CSeq (c1 c2 : com)
+  | CIf (b : bexp) (c1 c2 : com)
+  | CWhile (b : bexp) (c : com)
+  | CFor (cInit : com) (b : bexp) (cInc : com) (cBody : com).
+
+Check com.
+Check com_rect.
+Check com_ind.
+Check com_rec.
+Check com_sind.
+
+Notation "'skip'"  :=
+         CSkip (in custom com at level 0) : com_scope.
+Notation "x := y"  :=
+         (CAsgn x y)
+            (in custom com at level 0, x constr at level 0,
+             y at level 85, no associativity) : com_scope.
+Notation "x ; y" :=
+         (CSeq x y)
+           (in custom com at level 90, right associativity) : com_scope.
+Notation "'if' x 'then' y 'else' z 'end'" :=
+         (CIf x y z)
+           (in custom com at level 89, x at level 99,
+            y at level 99, z at level 99) : com_scope.
+Notation "'while' x 'do' y 'end'" :=
+         (CWhile x y)
+            (in custom com at level 89, x at level 99, y at level 99) : com_scope.
+Notation "'for(' cInit ';' b ';' cInc ')' '{' cBody '}'" :=
+         (CFor cInit b cInc cBody)
+            (in custom com at level 89, cInit at level 85, 
+                                        b     at level 85,
+                                        cInc  at level 89,
+                                        cBody at level 85) : com_scope.
+
+Reserved Notation
+         "st '=[' c ']=>' st'"
+         (at level 40, c custom com at level 99,
+          st constr, st' constr at next level).
+
+Inductive ceval : com -> state -> state -> Prop :=
+  | E_Skip : forall st,
+      st =[ skip ]=> st
+  | E_Asgn  : forall st a n x,
+      aeval st a = n ->
+      st =[ x := a ]=> (x !-> n ; st)
+  | E_Seq : forall c1 c2 st st' st'',
+      st  =[ c1 ]=> st'  ->
+      st' =[ c2 ]=> st'' ->
+      st  =[ c1 ; c2 ]=> st''
+  | E_IfTrue : forall st st' b c1 c2,
+      beval st b = true ->
+      st =[ c1 ]=> st' ->
+      st =[ if b then c1 else c2 end]=> st'
+  | E_IfFalse : forall st st' b c1 c2,
+      beval st b = false ->
+      st =[ c2 ]=> st' ->
+      st =[ if b then c1 else c2 end]=> st'
+  | E_WhileFalse : forall b st c,
+      beval st b = false ->
+      st =[ while b do c end ]=> st
+  | E_WhileTrue : forall st st' st'' b c,
+      beval st b = true ->
+      st  =[ c ]=> st' ->
+      st' =[ while b do c end ]=> st'' ->
+      st  =[ while b do c end ]=> st''
+  | E_ForTrue : forall st st1 st2 st3 st4 b cInit cBody cInc,
+      st  =[ cInit ]=> st1 ->
+      beval st1 b = true ->
+      st1  =[ cBody ]=> st2 ->
+      st2  =[ cInc ]=> st3 ->
+      st3 =[ for(skip ; b ; cInc) { cBody } ]=> st4 ->
+      st  =[ for(cInit ; b ; cInc) { cBody } ]=> st4
+ | E_ForFalse : forall st st1 b cInit cBody cInc,
+      st  =[ cInit ]=> st1 ->
+      beval st1 b = false ->
+      st  =[ for(cInit ; b ; cInc) { cBody } ]=> st1
+
+  where "st =[ c ]=> st'" := (ceval c st st').
+
+
+Definition p5 c1 b c2 c3 : com := <{ for(c1; b; c2) { c3 } }>.
+Definition p6 c1 b c2 c3 : com := <{c1; while b do c3; c2 end }>.
+
+Definition cequiv (c1 c2 : com) : Prop :=
+  forall (st st' : state), (st =[ c1 ]=> st') <-> (st =[ c2 ]=> st').
+
+
+Theorem p5_p6_equiv : forall c1 b c2 c3, cequiv (p5 c1 b c2 c3) (p6 c1 b c2 c3).
+Proof. intros c1 b c2 c3. unfold cequiv. intros st st'. unfold p5, p6. split; intro H.
+  - remember <{ for( c1; b; c2){c3} }> as forLoop eqn:Ef.
+    induction H; 
+      try (discriminate Ef);
+      try (subst; simpl in *; injection Ef as Ef1 Ef2 Ef3 Ef4; simpl in *; subst).
+    + (* for true *)
+      (*assert (G: st3 =[ skip; while b do c3; c2 end ]=> st4). { apply IHceval4. reflexivity. }*)
+      (* clear IHceval1 IHceval4 IHceval2 IHceval3. *)
+      apply (E_Seq _ _ st st1 st4 H).
+      apply (E_WhileTrue _ st3 _ b _ H0).
+      apply (E_Seq _ _ _ _ _ H1 H2).
+      apply G.
+
+Admitted.
+
+End ImpFor.
+
