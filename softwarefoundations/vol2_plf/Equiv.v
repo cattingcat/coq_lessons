@@ -1090,6 +1090,10 @@ Inductive ceval : com -> state -> state -> Prop :=
       st  =[ c ]=> st' ->
       st' =[ while b do c end ]=> st'' ->
       st  =[ while b do c end ]=> st''
+ | E_ForFalse : forall st st1 b cInit cBody cInc,
+      st  =[ cInit ]=> st1 ->
+      beval st1 b = false ->
+      st  =[ for(cInit ; b ; cInc) { cBody } ]=> st1
   | E_ForTrue : forall st st1 st2 st3 st4 b cInit cBody cInc,
       st  =[ cInit ]=> st1 ->
       beval st1 b = true ->
@@ -1097,10 +1101,6 @@ Inductive ceval : com -> state -> state -> Prop :=
       st2  =[ cInc ]=> st3 ->
       st3 =[ for(skip ; b ; cInc) { cBody } ]=> st4 ->
       st  =[ for(cInit ; b ; cInc) { cBody } ]=> st4
- | E_ForFalse : forall st st1 b cInit cBody cInc,
-      st  =[ cInit ]=> st1 ->
-      beval st1 b = false ->
-      st  =[ for(cInit ; b ; cInc) { cBody } ]=> st1
 
   where "st =[ c ]=> st'" := (ceval c st st').
 
@@ -1115,18 +1115,48 @@ Definition cequiv (c1 c2 : com) : Prop :=
 Theorem p5_p6_equiv : forall c1 b c2 c3, cequiv (p5 c1 b c2 c3) (p6 c1 b c2 c3).
 Proof. intros c1 b c2 c3. unfold cequiv. intros st st'. unfold p5, p6. split; intro H.
   - remember <{ for( c1; b; c2){c3} }> as forLoop eqn:Ef.
-    induction H; 
-      try (discriminate Ef);
-      try (subst; simpl in *; injection Ef as Ef1 Ef2 Ef3 Ef4; simpl in *; subst).
+    generalize dependent c1.
+    induction H; intros c1' Ef;
+      try (discriminate Ef).
+    + (* for false *) 
+      injection Ef as Ef1 Ef2 Ef3 Ef4. 
+        rewrite -> Ef1, Ef2 in *. clear Ef1 Ef2 Ef3 Ef4.
+      apply (E_Seq _ _ st st1 st1 H).
+      apply (E_WhileFalse _ _ _ H0).
     + (* for true *)
-      (*assert (G: st3 =[ skip; while b do c3; c2 end ]=> st4). { apply IHceval4. reflexivity. }*)
-      (* clear IHceval1 IHceval4 IHceval2 IHceval3. *)
+      injection Ef as Ef1 Ef2 Ef3 Ef4. 
+        rewrite -> Ef1, Ef2, Ef3, Ef4 in *. clear Ef1 Ef2 Ef3 Ef4 IHceval1 IHceval2 IHceval3.
       apply (E_Seq _ _ st st1 st4 H).
       apply (E_WhileTrue _ st3 _ b _ H0).
-      apply (E_Seq _ _ _ _ _ H1 H2).
-      apply G.
+        apply (E_Seq _ _ _ _ _ H1 H2).
+      assert (G: st3 =[ skip; while b do c3; c2 end ]=> st4). {
+        apply (IHceval4 <{ skip }>).
+        reflexivity.
+      }
+      inversion G.
+      inversion H6. subst.
+      apply H9.
+  - remember <{ c1; while b do c3; c2 end }> eqn:Ef.
+    destruct H;
+      try (discriminate Ef).
+    injection Ef as Ef1 Ef2.
+      rewrite -> Ef1 in *. clear Ef1.
+    generalize dependent c1.
+    generalize dependent st.
+    induction H0; intros stk c1' Ec1;
+      try (discriminate Ef2).
+    + injection Ef2 as Ef1 Ef2.
+        rewrite -> Ef1 in *.
+      apply (E_ForFalse stk st _ _ _ _ Ec1 H).
+    + injection Ef2 as Ef21 Ef22.
+        rewrite -> Ef21 in *. clear Ef21. rewrite -> Ef22 in *. clear Ef22.
+      inversion H0_. subst.
+      apply (E_ForTrue stk st st'0 st' _ _ _ _ _ Ec1 H H2 H5).
+      assert (G: forall st c1, st =[ c1 ]=> st' -> st =[ for( c1; b; c2){c3} ]=> st''). { apply IHceval2. reflexivity. }
+      apply (G st' <{ skip }>).
+      apply E_Skip.
+Qed.
 
-Admitted.
 
 End ImpFor.
 
