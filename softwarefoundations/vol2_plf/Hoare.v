@@ -498,10 +498,241 @@ Proof.
     + assn_auto''.
 Qed.
 
+Theorem hoare_while : forall P (b:bexp) c,
+  {{P /\ b}} c {{P}} ->
+  {{P}} while b do c end {{P /\ ~b}}.
+Proof.
+  intros P b c Hhoare st st' Heval HP.
+  (* We proceed by induction on Heval, because, in the "keep looping" case,
+     its hypotheses talk about the whole loop instead of just c. The
+     remember is used to keep the original command in the hypotheses;
+     otherwise, it would be lost in the induction. By using inversion
+     we clear away all the cases except those involving while. *)
+  remember <{while b do c end}> as original_command eqn:Horig.
+  induction Heval;
+    try (inversion Horig; subst; clear Horig);
+    eauto.
+Qed.
 
 
 
 
+Module RepeatExercise.
+Inductive com : Type :=
+  | CSkip : com
+  | CAsgn : string -> aexp -> com
+  | CSeq : com -> com -> com
+  | CIf : bexp -> com -> com -> com
+  | CWhile : bexp -> com -> com
+  | CRepeat : com -> bexp -> com.
+
+Notation "'repeat' e 'until' b 'end'" :=
+     (CRepeat e b)
+        (in custom com at level 0, e custom com at level 99, b custom com at level 99).
+Notation "'skip'" :=
+     (CSkip) (in custom com at level 0).
+Notation "x := y" :=
+     (CAsgn x y)
+        (in custom com at level 0, x constr at level 0, y at level 85, no associativity).
+Notation "x ; y" :=
+     (CSeq x y)
+        (in custom com at level 90, right associativity).
+Notation "'if' x 'then' y 'else' z 'end'" :=
+     (CIf x y z)
+        (in custom com at level 89, x at level 99, y at level 99, z at level 99).
+Notation "'while' b 'do' e 'end'" :=
+     (CWhile b e)
+        (in custom com at level 89, b at level 99, e at level 99).
+
+Inductive ceval : state -> com -> state -> Prop :=
+  | E_Skip : forall st,
+      st =[ skip ]=> st
+  | E_Asgn : forall st a1 n x,
+      aeval st a1 = n ->
+      st =[ x := a1 ]=> (x !-> n ; st)
+  | E_Seq : forall c1 c2 st st' st'',
+      st =[ c1 ]=> st' ->
+      st' =[ c2 ]=> st'' ->
+      st =[ c1 ; c2 ]=> st''
+  | E_IfTrue : forall st st' b c1 c2,
+      beval st b = true ->
+      st =[ c1 ]=> st' ->
+      st =[ if b then c1 else c2 end ]=> st'
+  | E_IfFalse : forall st st' b c1 c2,
+      beval st b = false ->
+      st =[ c2 ]=> st' ->
+      st =[ if b then c1 else c2 end ]=> st'
+  | E_WhileFalse : forall b st c,
+      beval st b = false ->
+      st =[ while b do c end ]=> st
+  | E_WhileTrue : forall st st' st'' b c,
+      beval st b = true ->
+      st =[ c ]=> st' ->
+      st' =[ while b do c end ]=> st'' ->
+      st =[ while b do c end ]=> st''
+  | E_RepeatTrue : forall b st st' c,
+      st =[ c ]=> st' ->
+      beval st' b = true ->
+      st =[ repeat c until b end ]=> st'
+  | E_RepeatFalse : forall st st' st'' b c,
+      st =[ c ]=> st' ->
+      beval st' b = false ->
+      st' =[ repeat c until b end ]=> st'' ->
+      st =[ repeat c until b end ]=> st''
+
+where "st '=[' c ']=>' st'" := (ceval st c st').
+
+Definition hoare_triple (P : Assertion) (c : com) (Q : Assertion) : Prop :=
+  forall st st', st =[ c ]=> st' -> P st -> Q st'.
+
+Notation "{{ P }} c {{ Q }}" := (hoare_triple P c Q) (at level 90, c custom com at level 99).
+
+
+Definition ex1_repeat :=
+  <{ repeat
+       X := 1;
+       Y := Y + 1
+     until (X = 1) end }>.
+Theorem ex1_repeat_works : empty_st =[ ex1_repeat ]=> (Y !-> 1 ; X !-> 1).
+Proof.
+  apply E_RepeatTrue.
+  - apply (E_Seq) with (st' := (X !-> 1)).
+    + constructor. reflexivity.
+    + constructor. reflexivity.
+  - reflexivity.
+Qed.
+
+Theorem hoare_repeat : forall P (b:bexp) c,
+  {{P}} c {{P}} ->
+  {{P}} repeat c until b end {{P /\ b}}.
+Proof.
+  intros P b c Hc st st' Hrepeat Hpst.
+  remember <{ repeat c until b end }> as r eqn:Er.
+  induction Hrepeat; 
+    try (discriminate Er);
+    try (injection Er as Erc Erb; subst).
+  - clear IHHrepeat. split.
+    + apply (Hc st st' Hrepeat Hpst).
+    + simpl. assumption.
+  - apply IHHrepeat2.
+    + reflexivity.
+    + apply (Hc st st' Hrepeat1 Hpst).
+Qed.
+
+Search (?a /\ ?b <-> ?b /\ ?a).
+
+
+Theorem hoare_consequence_pre : forall (P P' Q : Assertion) c,
+  {{P'}} c {{Q}} ->   P ->> P' ->  {{P}} c {{Q}}.
+Proof. Admitted.
+
+Example tst:
+ {{ X > 0 }}
+  repeat
+    Y := X;
+    X := X - 1
+  until X = 0 end
+  {{ X = 0 /\ Y > 0 }}.
+Proof. Admitted.
+End RepeatExercise.
 
 
 
+
+Module Himp.
+Inductive com : Type :=
+  | CSkip : com
+  | CAsgn : string -> aexp -> com
+  | CSeq : com -> com -> com
+  | CIf : bexp -> com -> com -> com
+  | CWhile : bexp -> com -> com
+  | CHavoc : string -> com.
+
+Notation "'havoc' l" := (CHavoc l)
+                        (in custom com at level 60, l constr at level 0).
+Notation "'skip'" := CSkip (in custom com at level 0).
+Notation "x := y" :=
+         (CAsgn x y)
+          (in custom com at level 0, x constr at level 0, y at level 85, no associativity).
+Notation "x ; y" :=
+         (CSeq x y)
+          (in custom com at level 90, right associativity).
+Notation "'if' x 'then' y 'else' z 'end'" :=
+         (CIf x y z)
+          (in custom com at level 89, x at level 99, y at level 99, z at level 99).
+Notation "'while' x 'do' y 'end'" :=
+         (CWhile x y)
+          (in custom com at level 89, x at level 99, y at level 99).
+
+Inductive ceval : com -> state -> state -> Prop :=
+  | E_Skip : forall st,
+      st =[ skip ]=> st
+  | E_Asgn : forall st a1 n x,
+      aeval st a1 = n ->
+      st =[ x := a1 ]=> (x !-> n ; st)
+  | E_Seq : forall c1 c2 st st' st'',
+      st =[ c1 ]=> st' ->
+      st' =[ c2 ]=> st'' ->
+      st =[ c1 ; c2 ]=> st''
+  | E_IfTrue : forall st st' b c1 c2,
+      beval st b = true ->
+      st =[ c1 ]=> st' ->
+      st =[ if b then c1 else c2 end ]=> st'
+  | E_IfFalse : forall st st' b c1 c2,
+      beval st b = false ->
+      st =[ c2 ]=> st' ->
+      st =[ if b then c1 else c2 end ]=> st'
+  | E_WhileFalse : forall b st c,
+      beval st b = false ->
+      st =[ while b do c end ]=> st
+  | E_WhileTrue : forall st st' st'' b c,
+      beval st b = true ->
+      st =[ c ]=> st' ->
+      st' =[ while b do c end ]=> st'' ->
+      st =[ while b do c end ]=> st''
+  | E_Havoc : forall st X n,
+      st =[ havoc X ]=> (X !-> n ; st)
+
+where "st '=[' c ']=>' st'" := (ceval c st st').
+
+Hint Constructors ceval : core.
+
+Definition hoare_triple (P:Assertion) (c:com) (Q:Assertion) : Prop :=
+  forall st st', st =[ c ]=> st' -> P st -> Q st'.
+Hint Unfold hoare_triple : core.
+
+Notation "{{ P }} c {{ Q }}" := (hoare_triple P c Q) (at level 90, c custom com at level 99): hoare_spec_scope.
+
+Theorem hoare_consequence_pre : forall (P P' Q : Assertion) c,
+  {{P'}} c {{Q}} ->  P ->> P' ->  {{P}} c {{Q}}.
+Proof. eauto. Qed.
+
+
+Definition havoc_pre (X : string) (Q : Assertion) (st : total_map nat) : Prop :=
+  forall n, Q (X !-> n; st).
+
+Theorem hoare_havoc : forall (Q : Assertion) (X : string),
+  {{ havoc_pre X Q }} havoc X {{ Q }}.
+Proof.
+  intros Q X st st' Hhavok Hqpre.
+  inversion Hhavok; subst.
+  apply Hqpre.
+Qed.
+
+Theorem havoc_post : forall (P : Assertion) (X : string),
+  {{ P }} havoc X {{ fun st => exists (n:nat), P [X |-> n] st }}.
+Proof.
+  intros P X. eapply hoare_consequence_pre.
+  - apply hoare_havoc.
+  - intros st Hpst npre.
+    exists (st X).
+    unfold assn_sub. simpl.
+    assert (G: (X !-> st X; X !-> npre; st) = st). {
+      apply functional_extensionality.
+      intro x. unfold t_update, eqb_string.
+      destruct (string_dec X x) as [ H | H ]; subst; reflexivity.
+    }
+    rewrite G. assumption.
+Qed.
+
+End Himp.
