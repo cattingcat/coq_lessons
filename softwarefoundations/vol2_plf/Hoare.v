@@ -736,3 +736,279 @@ Proof.
 Qed.
 
 End Himp.
+
+
+
+Module HoareAssertAssume.
+
+Inductive com : Type :=
+  | CSkip : com
+  | CAsgn : string -> aexp -> com
+  | CSeq : com -> com -> com
+  | CIf : bexp -> com -> com -> com
+  | CWhile : bexp -> com -> com
+  | CAssert : bexp -> com
+  | CAssume : bexp -> com.
+
+Notation "'assert' l" := (CAssert l) (in custom com at level 8, l custom com at level 0).
+Notation "'assume' l" := (CAssume l) (in custom com at level 8, l custom com at level 0).
+Notation "'skip'" :=  CSkip (in custom com at level 0).
+Notation "x := y" := (CAsgn x y)
+           (in custom com at level 0, x constr at level 0, y at level 85, no associativity).
+Notation "x ; y" := (CSeq x y)
+           (in custom com at level 90, right associativity).
+Notation "'if' x 'then' y 'else' z 'end'" := (CIf x y z)
+           (in custom com at level 89, x at level 99, y at level 99, z at level 99).
+Notation "'while' x 'do' y 'end'" := (CWhile x y)
+           (in custom com at level 89, x at level 99, y at level 99).
+
+Inductive result : Type :=
+  | RNormal : state -> result
+  | RError : result.
+
+Inductive ceval : com -> state -> result -> Prop :=
+  | E_Skip : forall st,
+      st =[ skip ]=> RNormal st
+  | E_Asgn : forall st a1 n x,
+      aeval st a1 = n ->
+      st =[ x := a1 ]=> RNormal (x !-> n ; st)
+  | E_SeqNormal : forall c1 c2 st st' r,
+      st =[ c1 ]=> RNormal st' ->
+      st' =[ c2 ]=> r ->
+      st =[ c1 ; c2 ]=> r
+  | E_SeqError : forall c1 c2 st,
+      st =[ c1 ]=> RError ->
+      st =[ c1 ; c2 ]=> RError
+  | E_IfTrue : forall st r b c1 c2,
+      beval st b = true ->
+      st =[ c1 ]=> r ->
+      st =[ if b then c1 else c2 end ]=> r
+  | E_IfFalse : forall st r b c1 c2,
+      beval st b = false ->
+      st =[ c2 ]=> r ->
+      st =[ if b then c1 else c2 end ]=> r
+  | E_WhileFalse : forall b st c,
+      beval st b = false ->
+      st =[ while b do c end ]=> RNormal st
+  | E_WhileTrueNormal : forall st st' r b c,
+      beval st b = true ->
+      st =[ c ]=> RNormal st' ->
+      st' =[ while b do c end ]=> r ->
+      st =[ while b do c end ]=> r
+  | E_WhileTrueError : forall st b c,
+      beval st b = true ->
+      st =[ c ]=> RError ->
+      st =[ while b do c end ]=> RError
+  | E_AssertTrue : forall st b,
+      beval st b = true ->
+      st =[ assert b ]=> RNormal st
+  | E_AssertFalse : forall st b,
+      beval st b = false ->
+      st =[ assert b ]=> RError
+  | E_Assume : forall st b,
+      beval st b = true ->
+      st =[ assume b ]=> RNormal st
+where "st '=[' c ']=>' r" := (ceval c st r).
+
+Definition hoare_triple (P : Assertion) (c : com) (Q : Assertion) : Prop :=
+  forall st r, st =[ c ]=> r   ->   P st   ->   (exists st', r = RNormal st' /\ Q st').
+
+Notation "{{ P }} c {{ Q }}" := (hoare_triple P c Q) (at level 90, c custom com at level 99) : hoare_spec_scope.
+
+
+
+Theorem assert_assume_differ : exists (P:Assertion) b (Q:Assertion),
+       ({{P}} assume b {{Q}}) /\ ~({{P}} assert b {{Q}}).
+Proof.
+  exists True.
+  exists <{ false }>.
+  exists True.
+  split.
+  - unfold hoare_triple. intros st r Hcom Ht.
+    inversion Hcom; subst. simpl in *. (* Actually H0 is contra, but continue *)
+    exists st.
+    split; reflexivity.
+  - unfold hoare_triple. intro H.
+    assert (forall st r, st =[ assert false ]=> r -> r = RError). {
+      intros st r H'.
+      inversion H'; subst. simpl in *.
+      - discriminate H1.
+      - reflexivity.
+    }
+
+    destruct (H (t_empty 0) RError).
+    + apply E_AssertFalse.
+      simpl. reflexivity.
+    + simpl. apply I.
+    + destruct H1 as [Hcontr _ ].
+      discriminate Hcontr.
+Qed.
+
+Theorem assert_implies_assume : forall P b Q,
+     ({{P}} assert b {{Q}}) -> ({{P}} assume b {{Q}}).
+Proof.
+  intros P b Q H st st' Hcom Hpst.
+  destruct (beval st b) eqn:Eb.
+  - destruct (H st (RNormal st)).
+    + apply E_AssertTrue.
+      apply Eb.
+    + assumption.
+    + inversion Hcom; subst; simpl in *.
+      destruct H0 as [H1' H2'].
+      injection H1' as Hk.
+      subst.
+      exists x.
+      split; try reflexivity.
+      assumption.
+  - inversion Hcom; subst; simpl in *.
+    congruence.
+Qed.
+
+
+Theorem hoare_asgn : forall Q X a,
+  {{Q [X |-> a]}} X := a {{Q}}.
+Proof.
+  unfold hoare_triple.
+  intros Q X a st st' HE HQ.
+  inversion HE. subst.
+  exists (X !-> aeval st a ; st). split; try reflexivity.
+  assumption. Qed.
+
+Theorem hoare_consequence_pre : forall (P P' Q : Assertion) c,
+  {{P'}} c {{Q}} -> P ->> P' -> {{P}} c {{Q}}.
+Proof.
+  intros P P' Q c Hhoare Himp.
+  intros st st' Hc HP. apply (Hhoare st st').
+  assumption. apply Himp. assumption. Qed.
+
+Theorem hoare_consequence_post : forall (P Q Q' : Assertion) c,
+  {{P}} c {{Q'}} ->  Q' ->> Q ->  {{P}} c {{Q}}.
+Proof.
+  intros P Q Q' c Hhoare Himp.
+  intros st r Hc HP.
+  unfold hoare_triple in Hhoare.
+  assert (exists st', r = RNormal st' /\ Q' st').
+  { apply (Hhoare st); assumption. }
+  destruct H as [st' [Hr HQ'] ].
+  exists st'. split; try assumption.
+  apply Himp. assumption.
+Qed.
+
+Theorem hoare_seq : forall P Q R c1 c2,
+  {{Q}} c2 {{R}} ->  {{P}} c1 {{Q}} ->  {{P}} c1;c2 {{R}}.
+Proof.
+  intros P Q R c1 c2 H1 H2 st r H12 Pre.
+  inversion H12; subst.
+  - eapply H1.
+    + apply H6.
+    + apply H2 in H3. apply H3 in Pre.
+        destruct Pre as [st'0 [Heq HQ] ].
+        inversion Heq; subst. assumption.
+  - (* Find contradictory assumption *)
+     apply H2 in H5. apply H5 in Pre.
+     destruct Pre as [st' [C _] ].
+     inversion C.
+Qed.
+
+
+
+Theorem hoare_assert: forall P (b: bexp), {{ b /\ P }} assert b {{ b /\ P }}.
+Proof.
+  intros P b st st' Hcom [Hb Hpst].
+  inversion Hcom; subst. simpl in *.
+  - exists st. split.
+    + reflexivity.
+    + split; assumption.
+  - simpl in Hb. congruence.
+Qed.
+
+Theorem hoare_assume: forall P (b: bexp), {{ P }} assume b {{ b /\ P }}.
+Proof.
+  intros P b st st' Hcom Hpst.
+  inversion Hcom; subst. simpl in *.
+  exists st. split.
+  + reflexivity.
+  + split; assumption.
+Qed.
+
+
+Theorem hoare_skip : forall P, {{P}} skip {{P}}.
+Proof.
+  intros P st st' H HP. inversion H. subst.
+  eexists. split. reflexivity. assumption.
+Qed.
+
+Theorem hoare_if : forall P Q (b:bexp) c1 c2,
+  {{ P /\ b}} c1 {{Q}} ->
+  {{ P /\ ~b}} c2 {{Q}} ->
+  {{P}} if b then c1 else c2 end {{Q}}.
+Proof.
+  intros P Q b c1 c2 HTrue HFalse st st' HE HP.
+  inversion HE; subst.
+  - (* b is true *)
+    apply (HTrue st st').
+      assumption.
+      split. assumption. assumption.
+  - (* b is false *)
+    apply (HFalse st st').
+      assumption.
+      split. assumption.
+      apply bexp_eval_false. assumption. Qed.
+
+Theorem hoare_while : forall P (b:bexp) c,
+  {{P /\ b}} c {{P}} -> {{P}} while b do c end {{ P /\ ~b}}.
+Proof.
+  intros P b c Hhoare st st' He HP.
+  remember <{while b do c end}> as wcom eqn:Heqwcom.
+  induction He;
+    try (inversion Heqwcom); subst; clear Heqwcom.
+  - (* E_WhileFalse *)
+    eexists. split. reflexivity. split.
+    assumption. apply bexp_eval_false. assumption.
+  - (* E_WhileTrueNormal *)
+    clear IHHe1.
+    apply IHHe2. reflexivity.
+    clear IHHe2 He2 r.
+    unfold hoare_triple in Hhoare.
+    apply Hhoare in He1.
+    + destruct He1 as [st1 [Heq Hst1] ].
+        inversion Heq; subst.
+        assumption.
+    + split; assumption.
+  - (* E_WhileTrueError *)
+     exfalso. clear IHHe.
+     unfold hoare_triple in Hhoare.
+     apply Hhoare in He.
+     + destruct He as [st' [C _] ]. inversion C.
+     + split; assumption.
+Qed.
+
+Example assert_assume_example:
+  {{True}}
+  assume (X = 1);
+  X := X + 1;
+  assert (X = 2)
+  {{True}}.
+Proof.
+  apply hoare_seq with (Q:= (X = 1 /\ True)%assertion).
+  - apply hoare_seq with (Q:= (X = 2 /\ True)%assertion).
+    + eapply hoare_consequence_pre.
+      eapply hoare_consequence_post.
+      eapply (hoare_assert True <{X = 2}>).
+      * simpl. intros st [_ H]. assumption.
+      * simpl. intros st [H1 H2]. rewrite H1; simpl. split; reflexivity.
+    + eapply hoare_consequence_pre.
+      apply (hoare_asgn ).
+      unfold "->>", assn_sub, t_update, bassn. simpl. intros st [H1 _]. rewrite H1. split; reflexivity.
+  -
+      (*eapply hoare_consequence_pre.*)
+      eapply hoare_consequence_post.
+      eapply (hoare_assume True <{X = 1}>).
+      simpl. intros st [H1 _]. 
+      apply beq_nat_true in H1.
+      split; try assumption; try (apply I).
+      Search ((?n =? ?m) = true -> ?X).
+Qed.
+
+End HoareAssertAssume.
+
