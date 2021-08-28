@@ -994,20 +994,19 @@ Proof.
   - apply hoare_seq with (Q:= (X = 2 /\ True)%assertion).
     + eapply hoare_consequence_pre.
       eapply hoare_consequence_post.
-      eapply (hoare_assert True <{X = 2}>).
-      * simpl. intros st [_ H]. assumption.
-      * simpl. intros st [H1 H2]. rewrite H1; simpl. split; reflexivity.
+      apply (hoare_assert True <{X = 2}>).
+      * intros st [_ H]. assumption.
+      * intros st [H1 H2]. simpl in *. rewrite H1. split; reflexivity.
     + eapply hoare_consequence_pre.
-      apply (hoare_asgn ).
+      apply hoare_asgn.
       unfold "->>", assn_sub, t_update, bassn. simpl. intros st [H1 _]. rewrite H1. split; reflexivity.
-  -
-      (*eapply hoare_consequence_pre.*)
-      eapply hoare_consequence_post.
-      eapply (hoare_assume True <{X = 1}>).
-      simpl. intros st [H1 _]. 
-      apply beq_nat_true in H1.
-      split; try assumption; try (apply I).
-      Search ((?n =? ?m) = true -> ?X).
+  - eapply hoare_consequence_post.
+    apply (hoare_assume True <{X = 1}>).
+    intros st [H1 _]. 
+    apply beq_nat_true in H1.
+    split.
+    + assumption.
+    + apply I.
 Qed.
 
 End HoareAssertAssume.
