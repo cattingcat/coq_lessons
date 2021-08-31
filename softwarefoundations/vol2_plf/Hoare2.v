@@ -238,3 +238,463 @@ Proof.
         lia.
   -- verify_assn.
 Qed.
+
+
+
+(*
+    {{ X = m }} ->>
+    {{ X! * 1 = m!                                     }}
+      Y := 1;
+    {{ X! * Y = m!                                     }}
+      while ~(X = 0)
+      do   {{ X! * Y = m!  /\  ~(X = 0)                }} ->>
+           {{ X! * Y = m!                              }}
+         Y := Y × X;
+           {{ X! * (Y * X) = m!                        }}
+         X := X - 1
+           {{ (X - 1)! * (Y * X) = m!                  }}
+      end
+    {{ X! * Y = m!  /\  X = 0                          }} ->>
+    {{ Y = m! }}
+*)
+
+
+(*
+  {{ True }} ->>
+  {{ min a b  + 0 = min a b                      }}
+  X := a;
+  {{ min X b  + 0 = min a b                      }}
+  Y := b;
+  {{ min X Y  + 0 = min a b                      }}
+  Z := 0;
+  {{ min X Y  + Z = min a b                      }}
+  while ~(X = 0) && ~(Y = 0) do
+    {{ (min X Y  + Z = min a b) /\ ~(X = 0) /\ ~(Y = 0)    }} ->>
+    {{ (min (X - 1) (Y - 1)  + (Z + 1) = min a b)          }}
+    X := X - 1;
+    {{ (min X (Y - 1)  + (Z + 1) = min a b)                }}
+    Y := Y - 1;
+    {{ (min X Y  + (Z + 1) = min a b)                      }}
+    Z := Z + 1
+    {{ (min X Y  + Z = min a b)                        }}
+  end
+  {{ (min X Y  + Z = min a b) /\ (X = 0) /\ (Y = 0)    }} ->>
+  {{ Z = min a b }}
+*)
+
+Definition is_wp P c Q :=
+  {{P}} c {{Q}} /\ forall P', {{P'}} c {{Q}} -> (P' ->> P).
+
+Theorem is_wp_example :
+  is_wp (Y <= 4) <{X := Y + 1}> (X <= 5).
+Proof.
+  split.
+  - eapply hoare_consequence_pre.
+    * apply hoare_asgn.
+    * verify_assn.
+  - intros P' H.
+    unfold hoare_triple in H.
+    unfold "->>".
+    intros st Hp'.
+    assert (G: (X !-> st Y + 1; st) X <= 5). {
+      simpl in H.
+      apply (H st (X !-> st Y + 1; st)).
+      + constructor. simpl. reflexivity.
+      + assumption.
+    }
+    unfold t_update in G. simpl in G.
+    Search (?c <-> S ?x <= S ?y).
+    Search (?x + ?y = ?y + ?x).
+    rewrite add_comm in G.
+    rewrite <- succ_le_mono in G.
+    simpl. 
+    apply G.
+Qed.
+
+Theorem hoare_asgn_weakest : forall Q X a,
+  is_wp (Q [X |-> a]) <{ X := a }> Q.
+Proof.
+  split.
+  - apply hoare_asgn.
+  - intros P' Hc st Hpst.
+    unfold assn_sub.
+    apply (Hc st).
+    + constructor. reflexivity.
+    + assumption.
+Qed.
+
+
+Module Himp2.
+Import Himp.
+Lemma hoare_havoc_weakest : forall (P Q : Assertion) (X : string),
+  {{ P }} havoc X {{ Q }}  ->  P ->> havoc_pre X Q.
+Proof.
+  intros P Q X H st Hpst n.
+  apply (H st).
+  - constructor.
+  - assumption.
+Qed.
+End Himp2.
+
+
+
+
+Inductive dcom : Type :=
+| DCSkip (Q : Assertion) (* skip {{ Q }} *)
+| DCSeq (d1 d2 : dcom)  (* d1 ; d2 *)
+| DCAsgn (X : string) (a : aexp) (Q : Assertion)  (* X := a {{ Q }} *)
+| DCIf (b : bexp) (P1 : Assertion) (d1 : dcom)
+       (P2 : Assertion) (d2 : dcom) (Q : Assertion)
+  (* if b then {{ P1 }} d1 else {{ P2 }} d2 end {{ Q }} *)
+| DCWhile (b : bexp) (P : Assertion) (d : dcom) (Q : Assertion)  (* while b do {{ P }} d end {{ Q }} *)
+| DCPre (P : Assertion) (d : dcom)  (* ->> {{ P }} d *)
+| DCPost (d : dcom) (Q : Assertion)  (* d ->> {{ Q }} *)
+.
+
+Inductive decorated : Type :=
+  | Decorated : Assertion -> dcom -> decorated.
+
+
+Declare Scope dcom_scope.
+Notation "'skip' {{ P }}" := (DCSkip P)
+      (in custom com at level 0, P constr) : dcom_scope.
+Notation "l ':=' a {{ P }}" := (DCAsgn l a P)
+      (in custom com at level 0, l constr at level 0, a custom com at level 85, P constr, no associativity) : dcom_scope.
+Notation "'while' b 'do' {{ P }} d 'end' {{ Q }}" := (DCWhile b P d Q)
+      (in custom com at level 89, b custom com at level 99, P constr, Q constr) : dcom_scope.
+Notation "'if' b 'then' {{ P }} d 'else' {{ P' }} d' 'end' {{ Q }}" := (DCIf b P d P' d' Q)
+      (in custom com at level 89, b custom com at level 99, P constr, P' constr, Q constr) : dcom_scope.
+Notation "'->>' {{ P }} d" := (DCPre P d)
+      (in custom com at level 12, right associativity, P constr) : dcom_scope.
+Notation "d '->>' {{ P }}" := (DCPost d P)
+      (in custom com at level 10, right associativity, P constr) : dcom_scope.
+Notation " d ; d' " := (DCSeq d d')
+      (in custom com at level 90, right associativity) : dcom_scope.
+Notation "{{ P }} d" := (Decorated P d)
+      (in custom com at level 91, P constr) : dcom_scope.
+Open Scope dcom_scope.
+
+Example dec0 :=  <{ skip {{ True }} }>.
+Example dec1 :=  <{ while true do {{ True }} skip {{ True }} end  {{ True }} }>.
+
+
+Example dec_while : decorated :=
+  <{
+    {{ True }}
+    while ~(X = 0)
+    do
+      {{ True /\ ~(X = 0) }}
+      X := X - 1
+      {{ True }}
+    end
+    {{ True /\ X = 0}} ->>
+    {{ X = 0 }} 
+  }>.
+
+
+Fixpoint extract (d : dcom) : com :=
+  match d with
+  | DCSkip _            => CSkip
+  | DCSeq d1 d2         => CSeq (extract d1) (extract d2)
+  | DCAsgn X a _        => CAsgn X a
+  | DCIf b _ d1 _ d2 _  => CIf b (extract d1) (extract d2)
+  | DCWhile b _ d _     => CWhile b (extract d)
+  | DCPre _ d           => extract d
+  | DCPost d _          => extract d
+  end.
+
+Definition extract_dec (dec : decorated) : com :=
+  match dec with
+  | Decorated P d => extract d
+  end.
+
+Example extract_while_ex :
+  extract_dec dec_while = <{while ~(X = 0) do X := X - 1 end}>.
+Proof.
+  unfold dec_while.
+  reflexivity.
+Qed.
+
+
+Fixpoint post (d : dcom) : Assertion :=
+  match d with
+  | DCSkip P          => P
+  | DCSeq _ d2        => post d2
+  | DCAsgn _ _ Q      => Q
+  | DCIf _ _ _ _ _ Q  => Q
+  | DCWhile _ _ _ Q   => Q
+  | DCPre _ d         => post d
+  | DCPost _ Q        => Q
+  end.
+
+Definition pre_dec (dec : decorated) : Assertion :=
+  match dec with
+  | Decorated P d => P
+  end.
+
+Definition post_dec (dec : decorated) : Assertion :=
+  match dec with
+  | Decorated P d => post d
+  end.
+
+
+Example pre_dec_while : pre_dec dec_while = True.
+Proof. reflexivity. Qed.
+
+Example post_dec_while : post_dec dec_while = (X = 0)%assertion.
+Proof. reflexivity. Qed.
+
+
+Definition dec_correct (dec : decorated) :=  {{pre_dec dec}} extract_dec dec {{post_dec dec}}.
+
+Example dec_while_triple_correct :
+  dec_correct dec_while
+ = {{ True }}
+   while ~(X = 0) do X := X - 1 end
+   {{ X = 0 }}.
+Proof. reflexivity. Qed.
+
+Fixpoint verification_conditions (P : Assertion) (d : dcom) : Prop :=
+  match d with
+  | DCSkip Q    => (P ->> Q)
+  | DCSeq d1 d2 =>
+         verification_conditions P d1
+      /\ verification_conditions (post d1) d2
+  | DCAsgn X a Q =>
+      (P ->> Q [X |-> a])
+  | DCIf b P1 d1 P2 d2 Q =>
+         ((P /\  b) ->> P1)%assertion
+      /\ ((P /\ ~b) ->> P2)%assertion
+      /\ (post d1 ->> Q) 
+      /\ (post d2 ->> Q)
+      /\ verification_conditions P1 d1
+      /\ verification_conditions P2 d2
+  | DCWhile b Pbody d Ppost =>
+      (* post d is the loop invariant and the initial precondition *)
+         (P ->> post d)
+      /\ ((post d /\  b) ->> Pbody)%assertion
+      /\ ((post d /\ ~b) ->> Ppost)%assertion
+      /\ verification_conditions Pbody d
+  | DCPre P' d =>
+         (P ->> P') 
+      /\ verification_conditions P' d
+  | DCPost d Q =>
+         verification_conditions P d 
+      /\ (post d ->> Q)
+  end.
+
+
+Theorem verification_correct : forall d P,
+  verification_conditions P d -> {{P}} extract d {{post d}}.
+Proof.
+  induction d; intros; simpl in *.
+  - (* Skip *)
+    eapply hoare_consequence_pre.
+      + apply hoare_skip.
+      + assumption.
+  - (* Seq *)
+    destruct H as [H1 H2].
+    eapply hoare_seq.
+      + apply IHd2. apply H2.
+      + apply IHd1. apply H1.
+  - (* Asgn *)
+    eapply hoare_consequence_pre.
+      + apply hoare_asgn.
+      + assumption.
+  - (* If *)
+    destruct H as [HPre1 [HPre2 [Hd1 [Hd2 [HThen HElse] ] ] ] ].
+    apply IHd1 in HThen. clear IHd1.
+    apply IHd2 in HElse. clear IHd2.
+    apply hoare_if.
+      + eapply hoare_consequence; eauto.
+      + eapply hoare_consequence; eauto.
+  - (* While *)
+    destruct H as [Hpre [Hbody1 [Hpost1 Hd] ] ].
+    eapply hoare_consequence; eauto.
+    apply hoare_while.
+    eapply hoare_consequence_pre; eauto.
+  - (* Pre *)
+    destruct H as [HP Hd].
+    eapply hoare_consequence_pre; eauto.
+  - (* Post *)
+    destruct H as [Hd HQ].
+    eapply hoare_consequence_post; eauto.
+Qed.
+
+Definition verification_conditions_dec (dec : decorated) : Prop :=
+  match dec with
+  | Decorated P d => verification_conditions P d
+  end.
+
+Corollary verification_correct_dec : forall dec,
+  verification_conditions_dec dec -> dec_correct dec.
+Proof.
+  intros [P d]. apply verification_correct.
+Qed.
+
+Eval simpl in verification_conditions_dec dec_while.
+
+Example vc_dec_while : verification_conditions_dec dec_while.
+Proof. verify_assn. Qed.
+
+
+
+Ltac verify :=
+  intros;
+  apply verification_correct;
+  verify_assn.
+
+Theorem Dec_while_correct :  dec_correct dec_while.
+Proof. verify. Qed.
+
+
+Example subtract_slowly_dec (m : nat) (p : nat) : decorated :=
+  <{
+      {{ X = m /\ Z = p }} ->>
+      {{ Z - X = p - m }}
+    while ~(X = 0)
+    do {{ Z - X = p - m /\ X <> 0 }} ->>
+         {{ (Z - 1) - (X - 1) = p - m }}
+       Z := Z - 1
+         {{ Z - (X - 1) = p - m }} ;
+       X := X - 1
+         {{ Z - X = p - m }}
+    end
+      {{ Z - X = p - m /\ X = 0 }} ->>
+      {{ Z = p - m }} 
+  }>.
+Theorem subtract_slowly_dec_correct : forall m p,
+  dec_correct (subtract_slowly_dec m p).
+Proof. verify. (* this grinds for a bit! *) Qed.
+
+
+
+
+(* Definition swap : com := *)
+(*   <{ X := X + Y; *)
+(*      Y := X - Y; *)
+(*      X := X - Y }>. *)
+Definition swap_dec (m n:nat) : decorated :=
+  <{
+       {{ X = m /\ Y = n}} ->>
+       {{ (X + Y) - ((X + Y) - Y) = n /\ (X + Y) - Y = m }}
+      X := X + Y
+       {{ X - (X - Y) = n /\ X - Y = m }};
+      Y := X - Y
+       {{ X - Y = n /\ Y = m }};
+      X := X - Y
+       {{ X = n /\ Y = m}} 
+  }>.
+Theorem swap_correct : forall m n,  dec_correct (swap_dec m n).
+Proof. verify. Qed.
+
+
+Definition div_mod_dec (a b : nat) : decorated :=
+  <{
+      {{ True }} ->>
+      {{ b * 0 + a = a }}
+      X := a
+      {{ b * 0 + X = a }};
+      Y := 0
+      {{ b * Y + X = a }};
+      while b <= X do
+        {{ b * Y + X = a /\ b <= X }} ->>
+        {{ b * (Y + 1) + (X - b) = a }}
+        X := X - b
+        {{ b * (Y + 1) + X = a }};
+        Y := Y + 1
+        {{ b * Y + X = a }}
+      end
+      {{ b * Y + X = a /\ ~(b <= X) }} ->>
+      {{ b * Y + X = a /\ (X < b) }} 
+  }>.
+Theorem div_mod_dec_correct : forall a b,  dec_correct (div_mod_dec a b).
+Proof.
+  verify.
+Qed.
+
+
+
+Inductive ev : nat -> Prop :=
+  | ev_0 : ev O
+  | ev_SS : forall n : nat, ev n -> ev (S (S n)).
+
+Definition find_parity_dec' (m:nat) : decorated :=
+  <{
+        {{ X = m }} ->>
+        {{ ap ev X <-> ev m }}
+       while 2 <= X do
+          {{ (ap ev X <-> ev m) /\ 2 <= X }} ->>
+          {{ ap ev (X - 2) <-> ev m }}
+          X := X - 2
+          {{ ap ev X <-> ev m }}
+       end
+       {{ (ap ev X <-> ev m) /\ ~(2 <= X) }} ->>
+       {{ X=0 <-> ev m }} 
+  }>.
+
+Lemma l4 : forall m,
+  2 <= m -> (ev (m - 2) <-> ev m).
+Proof.
+  induction m; intros. split; intro; constructor.
+  destruct m. inversion H. inversion H1. simpl in *.
+  rewrite <- minus_n_O in *. split; intro.
+    constructor. assumption.
+    inversion H0. assumption.
+Qed.
+
+Theorem find_parity_correct' : forall m,  dec_correct (find_parity_dec' m).
+Proof.
+  verify;
+    (* simplification too aggressive ... reverting a bit *)
+    fold (2 <=? (st X)) in *;
+    try rewrite leb_iff in *;
+    try rewrite leb_iff_conv in *; intuition; eauto; try lia.
+  - (* invariant preserved (part 1) *)
+    rewrite l4 in H0; eauto.
+  - (* invariant preserved (part 2) *)
+    rewrite l4; eauto.
+  - (* invariant strong enough to imply conclusion
+       (-> direction) *)
+    apply H0. constructor.
+  - (* invariant strong enough to imply conclusion
+       (<- direction) *)
+      destruct (st X) as [| [| n] ]. (* by H1 X can only be 0 or 1 *)
+      + (* st X = 0 *)
+        reflexivity.
+      + (* st X = 1 *)
+        inversion H.
+      + (* st X = 2 *)
+        lia.
+Qed.
+
+
+
+Example slow_assignment_dec (m : nat) : decorated :=
+  <{  {{ X = m }} ->>
+      {{ X + 0 = m }}
+      Y := 0
+      {{ X + Y = m }};
+      while ~(X = 0) do
+        {{ X + Y = m /\ ~(X = 0) }} ->>
+        {{ (X - 1) + (Y + 1) = m }}
+        X := X - 1
+        {{ X + (Y + 1) = m }};
+        Y := Y + 1
+        {{ X + Y = m }}
+      end
+      {{ X + Y = m /\ (X = 0) }} ->>
+      {{ Y = m }}
+  }>.
+
+Theorem slow_assignment_dec_correct : forall m,  dec_correct (slow_assignment_dec m).
+Proof. verify. Qed.
+
+
+
+
+
+
+
+
+
