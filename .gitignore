@@ -39,6 +39,7 @@ native_compute_profile_*.data
 *.v.after-timing
 *.v.before-timing
 *.v.timing
+*.v.crashcoqide
 time-of-build-after.log
 time-of-build-before.log
 time-of-build-both.log

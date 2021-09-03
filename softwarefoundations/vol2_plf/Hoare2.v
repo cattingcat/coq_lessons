@@ -691,10 +691,106 @@ Theorem slow_assignment_dec_correct : forall m,  dec_correct (slow_assignment_de
 Proof. verify. Qed.
 
 
+Definition foo1: nat -> nat -> nat := fun a b => a + b.
+Definition foo2: nat -> nat -> Prop := fun a b => a = b.
+
+Definition foo3: foo2 1 1. (* Theorem / Lemma is just functions *)
+Proof. reflexivity. Qed.
 
 
 
+Fixpoint fib n :=
+  match n with
+  | 0    => 1
+  | S n' => match n' with
+            | 0     => 1
+            | S n'' => fib n' + fib n''
+            end
+  end.
+
+Lemma fib_eqn : forall n,
+  n > 0 -> fib n + fib (pred n) = fib (1 + n).
+Proof.
+  intros n Hgt0.
+  destruct n as [| n'].
+  - inversion Hgt0.
+  - simpl. reflexivity.
+Qed.
+
+Definition T : string := "T".
+
+Open Scope com_scope.
+Definition fib_prog (n: nat) : com := 
+  <{
+    X := 1;
+    Y := 1;
+    Z := 1;
+    while ~(X = 1 + n) do
+      T := Z;
+      Z := Z + Y;
+      Y := T;
+      X := 1 + X
+    end
+  }>.
 
 
+Open Scope dcom_scope.
+Definition dfib (n: nat) : decorated := 
+  <{
+    {{ True }} ->>
+    {{ 1 = 1 /\ 1 = 1 /\ 1 = 1 }}
+    X := 1
+    {{ X = 1 /\ 1 = 1 /\ 1 = 1 }};
+    Y := 1
+    {{ X = 1 /\ Y = 1 /\ 1 = 1 }};
+    Z := 1
+    {{ X = 1 /\ Y = 1 /\ Z = 1 }} ->>
+    {{ X > 0 /\ Y = (ap fib (X - 1)) /\ Z = (ap fib X) }};
+    while ~(X = 1 + n) do
+      {{ X > 0 /\ Y = (ap fib (X - 1)) /\ Z = (ap fib X) /\ ~(X = 1 + n) }}
+      T := Z
+      {{ X > 0 /\ Y = (ap fib (X - 1)) /\ Z = (ap fib X) /\ T = (ap fib X) /\ ~(X = 1 + n) }};
+      Z := Z + Y 
+      {{ X > 0 /\ Y = (ap fib (X - 1)) /\ Z = (ap fib (1 + X)) /\ T = (ap fib X) /\ ~(X = 1 + n) }};
+      Y := T
+      {{ X > 0 /\ Y = (ap fib X) /\ Z = (ap fib (1 + X)) /\ T = (ap fib X) /\ ~(X = 1 + n)  }} ->>
+      {{ X > 0 /\ Y = (ap fib ((X + 1) - 1)) /\ Z = (ap fib (1 + X)) }};
+      X := 1 + X
+      {{ X > 0 /\ Y = (ap fib (X - 1)) /\ Z = (ap fib X) }}
+    end
+    {{ X > 0 /\ Y = (ap fib (X - 1)) /\ Z = (ap fib X) /\ (X = 1 + n) }} ->>
+    {{ Y = fib n }}
+  }>.
 
+Lemma sn_1: forall n, S n - 1 = n.
+Proof. intros n. simpl. lia. Qed.
+
+Lemma n_1_1: forall n, n + 1 - 1 = n.
+Proof. intros n. lia. Qed.
+
+Lemma n_0: forall n, n - 0 = n.
+Proof. intros n. lia. Qed.
+
+Theorem dfib_correct : forall n,  dec_correct (dfib n).
+Proof. verify.
+  - destruct (st X). inversion H.
+    rewrite -> sn_1. reflexivity.
+  - rewrite -> n_1_1. reflexivity.
+  - rewrite -> n_1_1.
+    rewrite -> n_0. reflexivity.
+  - rewrite -> sn_1. reflexivity.
+Qed.
+
+(*
+  Exercise: 5 stars, advanced, optional (improve_dcom)
+  The formal decorated programs defined in this section are intended to 
+  look as similar as possible to the informal ones defined earlier in the 
+  chapter. If we drop this requirement, we can eliminate almost all annotations,
+   just requiring final postconditions and loop invariants to be provided explicitly. 
+  Do this -- i.e., define a new version of dcom with as few annotations as possible 
+  and adapt the rest of the formal development leading up to the verification_correct theorem. 
+*)
+
+Module LastEx.
+End LastEx.
 
