@@ -490,15 +490,6 @@ Proof. intros X R x y H.
   apply multi_refl.
 Qed.
 
-(*
-Fixpoint multi_trans_fun (X : Type) (R : relation X) (x y z : X)
-  (a : multi R x y)
-  (b : multi R y z) : multi R x z :=
-  match a with 
-  | multi_refl _ x => (b: multi R x z)
-  | multi_step _ x y z r t => multi_step t (multi_trans_fun X R )
-  end.
-*)
 
 Theorem multi_trans :  forall (X : Type) (R : relation X) (x y z : X),
       multi R x y ->
@@ -515,6 +506,7 @@ Proof.
 Qed.
 
 Print multi_trans.
+Print multi_ind.
 
 
 Lemma test_multistep_1:
@@ -786,3 +778,194 @@ Proof.
       apply G5.
     + constructor. assumption. assumption.
 Qed.
+
+Theorem evalF_eval : forall t n,
+  evalF t = n <-> t ==> n.
+Proof.
+  intros t n. split; intro H.
+  generalize dependent n.
+  - induction t.
+    + intros n' H. simpl in H; subst. constructor.
+    + intros n H. simpl in H.
+      rewrite <- H.
+      apply (E_Plus t1 t2).
+      * apply IHt1. reflexivity.
+      * apply IHt2. reflexivity.
+  - induction H.
+    + reflexivity.
+    + simpl. auto.
+Qed.
+
+
+
+Module Combined.
+Inductive tm : Type :=
+  | C : nat -> tm
+  | P : tm -> tm -> tm
+  | tru : tm
+  | fls : tm
+  | test : tm -> tm -> tm -> tm.
+
+Inductive value : tm -> Prop :=
+  | v_const : forall n, value (C n)
+  | v_tru : value tru
+  | v_fls : value fls.
+
+Reserved Notation " t '-->' t' " (at level 40).
+Inductive step : tm -> tm -> Prop :=
+  | ST_PlusConstConst : forall n1 n2,
+      P (C n1) (C n2) --> C (n1 + n2)
+  | ST_Plus1 : forall t1 t1' t2,
+      t1 --> t1' ->
+      P t1 t2 --> P t1' t2
+  | ST_Plus2 : forall v1 t2 t2',
+      value v1 ->
+      t2 --> t2' ->
+      P v1 t2 --> P v1 t2'
+  | ST_IfTrue : forall t1 t2,
+      test tru t1 t2 --> t1
+  | ST_IfFalse : forall t1 t2,
+      test fls t1 t2 --> t2
+  | ST_If : forall t1 t1' t2 t3,
+      t1 --> t1' ->
+      test t1 t2 t3 --> test t1' t2 t3
+  where " t '-->' t' " := (step t t').
+
+
+Theorem combined_deterministic: deterministic step.
+Proof.
+  unfold deterministic.
+  intros x y1 y2 H1 H2.
+  generalize dependent y2.
+  induction H1; intros y2 H2.
+  - (*ST_PlusConstConst*) inversion H2; subst.
+    + reflexivity.
+    + inversion H3.
+    + inversion H4.
+  - (* ST_Plus1 *) inversion H2; subst.
+    + inversion H1.
+    + apply IHstep in H4. subst. reflexivity.
+    + inversion H3; subst. inversion H1. inversion H1. inversion H1.
+  - (* ST_Plus2 *) inversion H; subst.
+    + inversion H2; subst. 
+      * inversion H1.
+      * inversion H5.
+      * inversion H2; subst. inversion H3.
+        apply IHstep in H8; subst. reflexivity.
+    + inversion H2. inversion H5; subst.
+      apply IHstep in H6. subst. reflexivity.
+    + inversion H2. inversion H5; subst.
+      apply IHstep in H6. subst. reflexivity.
+  - (* ST_IfTrue *) inversion H2; subst. reflexivity. inversion H4.
+  - (* ST_IfFalse *) inversion H2; subst. reflexivity. inversion H4.
+  - (* ST_If *) inversion H2; subst.
+    + inversion H1.
+    + inversion H1.
+    + apply IHstep in H5. subst. reflexivity.
+Qed.
+End Combined.
+
+
+
+
+Inductive aval : aexp -> Prop :=
+  | av_num : forall n, aval (ANum n).
+
+
+Reserved Notation " a '/' st '-->a' a' " (at level 40, st at level 39).
+Inductive astep (st : state) : aexp -> aexp -> Prop :=
+  | AS_Id : forall (i : string),
+      i / st -->a (st i)
+  | AS_Plus1 : forall a1 a1' a2,
+      a1 / st -->a a1' ->
+      <{ a1 + a2 }> / st -->a <{ a1' + a2 }>
+  | AS_Plus2 : forall v1 a2 a2',
+      aval v1 ->
+      a2 / st -->a a2' ->
+      <{ v1 + a2 }> / st -->a <{ v1 + a2' }>
+  | AS_Plus : forall (n1 n2 : nat),
+      <{ n1 + n2 }> / st -->a (n1 + n2)
+  | AS_Minus1 : forall a1 a1' a2,
+      a1 / st -->a a1' ->
+      <{ a1 - a2 }> / st -->a <{ a1' - a2 }>
+  | AS_Minus2 : forall v1 a2 a2',
+      aval v1 ->
+      a2 / st -->a a2' ->
+      <{ v1 - a2 }> / st -->a <{ v1 - a2' }>
+  | AS_Minus : forall (n1 n2 : nat),
+      <{ n1 - n2 }> / st -->a (n1 - n2)
+  | AS_Mult1 : forall a1 a1' a2,
+      a1 / st -->a a1' ->
+      <{ a1 * a2 }> / st -->a <{ a1' * a2 }>
+  | AS_Mult2 : forall v1 a2 a2',
+      aval v1 ->
+      a2 / st -->a a2' ->
+      <{ v1 * a2 }> / st -->a <{ v1 * a2' }>
+  | AS_Mult : forall (n1 n2 : nat),
+      <{ n1 * n2 }> / st -->a (n1 * n2)
+  where " a '/' st '-->a' a' " := (astep st a a').
+
+Reserved Notation " b '/' st '-->b' b' " (at level 40, st at level 39).
+Inductive bstep (st : state) : bexp -> bexp -> Prop :=
+  | BS_Eq1 : forall a1 a1' a2,
+      a1 / st -->a a1' ->
+      <{ a1 = a2 }> / st -->b <{ a1' = a2 }>
+  | BS_Eq2 : forall v1 a2 a2',
+      aval v1 ->
+      a2 / st -->a a2' ->
+      <{ v1 = a2 }> / st -->b <{ v1 = a2' }>
+  | BS_Eq : forall (n1 n2 : nat),
+      <{ n1 = n2 }> / st -->b
+      (if (n1 =? n2) then <{ true }> else <{ false }>)
+  | BS_LtEq1 : forall a1 a1' a2,
+      a1 / st -->a a1' ->
+      <{ a1 <= a2 }> / st -->b <{ a1' <= a2 }>
+  | BS_LtEq2 : forall v1 a2 a2',
+      aval v1 ->
+      a2 / st -->a a2' ->
+      <{ v1 <= a2 }> / st -->b <{ v1 <= a2' }>
+  | BS_LtEq : forall (n1 n2 : nat),
+      <{ n1 <= n2 }> / st -->b
+      (if (n1 <=? n2) then <{ true }> else <{ false }>)
+  | BS_NotStep : forall b1 b1',
+      b1 / st -->b b1' ->
+      <{ ~b1 }> / st -->b <{ ~b1' }>
+  | BS_NotTrue : <{ ~true }> / st -->b <{ false }>
+  | BS_NotFalse : <{ ~false }> / st -->b <{ true }>
+  | BS_AndStep : forall b1 b1' b2,
+      b1 / st -->b b1' ->
+      <{ b1 && b2 }> / st -->b <{ b1' && b2 }>
+  | BS_AndTrueStep : forall b2 b2',
+      b2 / st -->b b2' ->
+      <{ true && b2 }> / st -->b <{ true && b2' }>
+  | BS_AndFalse : forall b2,
+      <{ false && b2 }> / st -->b <{ false }>
+  | BS_AndTrueTrue : <{ true && true }> / st -->b <{ true }>
+  | BS_AndTrueFalse : <{ true && false }> / st -->b <{ false }>
+where " b '/' st '-->b' b' " := (bstep st b b').
+
+
+
+Reserved Notation " t '/' st '-->' t' '/' st' "    (at level 40, st at level 39, t' at level 39).
+Inductive cstep : (com * state) -> (com * state) -> Prop :=
+  | CS_AsgnStep : forall st i a1 a1',
+      a1 / st -->a a1' ->
+      <{ i := a1 }> / st --> <{ i := a1' }> / st
+  | CS_Asgn : forall st i (n : nat),
+      <{ i := n }> / st --> <{ skip }> / (i !-> n ; st)
+  | CS_SeqStep : forall st c1 c1' st' c2,
+      c1 / st --> c1' / st' ->
+      <{ c1 ; c2 }> / st --> <{ c1' ; c2 }> / st'
+  | CS_SeqFinish : forall st c2,
+      <{ skip ; c2 }> / st --> c2 / st
+  | CS_IfStep : forall st b1 b1' c1 c2,
+      b1 / st -->b b1' ->
+      <{ if b1 then c1 else c2 end }> / st  -->  <{ if b1' then c1 else c2 end }> / st
+  | CS_IfTrue : forall st c1 c2,
+      <{ if true then c1 else c2 end }> / st --> c1 / st
+  | CS_IfFalse : forall st c1 c2,
+      <{ if false then c1 else c2 end }> / st --> c2 / st
+  | CS_While : forall st b1 c1,
+      <{ while b1 do c1 end }> / st  -->  <{ if b1 then c1; while b1 do c1 end else skip end }> / st
+where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')).
+
