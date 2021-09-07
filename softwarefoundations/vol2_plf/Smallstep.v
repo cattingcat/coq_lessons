@@ -969,3 +969,209 @@ Inductive cstep : (com * state) -> (com * state) -> Prop :=
       <{ while b1 do c1 end }> / st  -->  <{ if b1 then c1; while b1 do c1 end else skip end }> / st
 where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')).
 
+
+
+Module CImp.
+
+Inductive com : Type :=
+  | CSkip : com
+  | CAsgn : string -> aexp -> com
+  | CSeq : com -> com -> com
+  | CIf : bexp -> com -> com -> com
+  | CWhile : bexp -> com -> com
+  | CPar : com -> com -> com. (* <--- NEW *)
+
+Notation "x || y" :=
+         (CPar x y) (in custom com at level 90, right associativity).
+Notation "'skip'" :=
+         CSkip (in custom com at level 0).
+Notation "x := y" :=
+         (CAsgn x y) (in custom com at level 0, x constr at level 0, y at level 85, no associativity).
+Notation "x ; y" :=
+         (CSeq x y) (in custom com at level 90, right associativity).
+Notation "'if' x 'then' y 'else' z 'end'" :=
+         (CIf x y z) (in custom com at level 89, x at level 99, y at level 99, z at level 99).
+Notation "'while' x 'do' y 'end'" :=
+         (CWhile x y) (in custom com at level 89, x at level 99, y at level 99).
+
+Inductive cstep : (com * state) -> (com * state) -> Prop :=
+  | CS_AsgnStep : forall st i a1 a1',
+      a1 / st -->a a1' ->
+      <{ i := a1 }> / st --> <{ i := a1' }> / st
+  | CS_Asgn : forall st i (n : nat),
+      <{ i := n }> / st --> <{ skip }> / (i !-> n ; st)
+  | CS_SeqStep : forall st c1 c1' st' c2,
+      c1 / st --> c1' / st' ->
+      <{ c1 ; c2 }> / st --> <{ c1' ; c2 }> / st'
+  | CS_SeqFinish : forall st c2,
+      <{ skip ; c2 }> / st --> c2 / st
+  | CS_IfStep : forall st b1 b1' c1 c2,
+      b1 / st -->b b1' ->
+      <{ if b1 then c1 else c2 end }> / st
+      -->
+      <{ if b1' then c1 else c2 end }> / st
+  | CS_IfTrue : forall st c1 c2,
+      <{ if true then c1 else c2 end }> / st --> c1 / st
+  | CS_IfFalse : forall st c1 c2,
+      <{ if false then c1 else c2 end }> / st --> c2 / st
+  | CS_While : forall st b1 c1,
+      <{ while b1 do c1 end }> / st
+      -->
+      <{ if b1 then c1; while b1 do c1 end else skip end }> / st
+  (**** New part: ****)
+  | CS_Par1 : forall st c1 c1' c2 st',
+      c1 / st --> c1' / st' ->
+      <{ c1 || c2 }> / st --> <{ c1' || c2 }> / st'
+  | CS_Par2 : forall st c1 c2 c2' st',
+      c2 / st --> c2' / st' ->
+      <{ c1 || c2 }> / st --> <{ c1 || c2' }> / st'
+  | CS_ParDone : forall st,
+      <{ skip || skip }> / st --> <{ skip }> / st
+where " t '/' st '-->' t' '/' st' " := (cstep (t,st) (t',st')).
+
+
+Definition cmultistep := multi cstep.
+Notation " t '/' st '-->*' t' '/' st' " :=
+   (cmultistep (t,st) (t',st')) (at level 40, st at level 39, t' at level 39).
+
+Definition par_loop : com :=
+  <{ Y := 1 || while (Y = 0) do X := X + 1 end }>.
+
+Lemma par_body_n__Sn : forall n st,
+  st X = n /\ st Y = 0 ->
+  par_loop / st -->* par_loop / (X !-> S n ; st).
+Proof.
+  intros n st [Hx Hy].
+  eapply multi_step. apply CS_Par2. apply CS_While.
+
+  eapply multi_step. apply CS_Par2. apply CS_IfStep.
+  eapply BS_Eq1. apply AS_Id.
+
+  eapply multi_step. apply CS_Par2. apply CS_IfStep. rewrite -> Hy.
+  eapply BS_Eq. 
+
+  eapply multi_step. apply CS_Par2. apply CS_IfTrue.
+
+  eapply multi_step. apply CS_Par2. apply CS_SeqStep.
+  apply CS_AsgnStep. apply AS_Plus1. apply AS_Id. rewrite -> Hx.
+
+  eapply multi_step. apply CS_Par2. apply CS_SeqStep.
+  apply CS_AsgnStep. apply AS_Plus.
+
+  eapply multi_step. apply CS_Par2. apply CS_SeqStep.
+  apply CS_Asgn.
+
+  eapply multi_step. apply CS_Par2. apply CS_SeqFinish.
+  fold par_loop.
+  assert (G: n + 1 = S n). { lia. }
+  rewrite -> G.
+
+  apply multi_refl.
+Qed.
+
+Lemma par_body_n : forall n st,
+  st X = 0 /\ st Y = 0 ->
+  exists st', par_loop / st -->* par_loop / st' /\ st' X = n /\ st' Y = 0.
+Proof.
+(* it looks like mistake, we need n > 0 *)
+Admitted.
+
+Theorem par_loop_any_X:
+  forall n, exists st',
+    par_loop / empty_st -->* <{skip}> / st'
+    /\ st' X = n.
+Proof.
+  intros n.
+  destruct (par_body_n n empty_st).
+    split; reflexivity.
+  rename x into st.
+  inversion H as [H' [HX HY] ]; clear H.
+  exists (Y !-> 1 ; st). split.
+  eapply multi_trans with (par_loop,st). apply H'.
+  eapply multi_step. apply CS_Par1. apply CS_Asgn.
+  eapply multi_step. apply CS_Par2. apply CS_While.
+  eapply multi_step. apply CS_Par2. apply CS_IfStep.
+    apply BS_Eq1. apply AS_Id. rewrite t_update_eq.
+  eapply multi_step. apply CS_Par2. apply CS_IfStep.
+    apply BS_Eq. simpl.
+  eapply multi_step. apply CS_Par2. apply CS_IfFalse.
+  eapply multi_step. apply CS_ParDone.
+  apply multi_refl.
+  rewrite t_update_neq. assumption. intro X; inversion X.
+Qed.
+
+End CImp.
+
+
+
+
+
+Definition stack := list nat.
+Definition prog := list sinstr.
+Inductive stack_step (st : state) : prog * stack -> prog * stack -> Prop :=
+  | SS_Push : forall stk n p,
+    stack_step st (SPush n :: p, stk) (p, n :: stk)
+  | SS_Load : forall stk i p,
+    stack_step st (SLoad i :: p, stk) (p, st i :: stk)
+  | SS_Plus : forall stk n m p,
+    stack_step st (SPlus :: p, n::m::stk) (p, (m+n)::stk)
+  | SS_Minus : forall stk n m p,
+    stack_step st (SMinus :: p, n::m::stk) (p, (m-n)::stk)
+  | SS_Mult : forall stk n m p,
+    stack_step st (SMult :: p, n::m::stk) (p, (m*n)::stk).
+
+Theorem stack_step_deterministic : forall st,
+  deterministic (stack_step st).
+Proof.
+  unfold deterministic. intros st x y1 y2 H1 H2.
+  induction H1; inversion H2; reflexivity.
+Qed.
+
+Definition stack_multistep st := multi (stack_step st).
+
+Fixpoint s_compile (e : aexp) : list sinstr := 
+  match e with
+  | ANum n => SPush n :: nil
+  | AId  x => SLoad x :: nil
+  | AMult  a1 a2 => (s_compile a1 ++ s_compile a2) ++ [SMult]
+  | APlus  a1 a2 => (s_compile a1 ++ s_compile a2) ++ [SPlus]
+  | AMinus a1 a2 => (s_compile a1 ++ s_compile a2) ++ [SMinus]
+  end.
+(* TODO : *)
+Definition compiler_is_correct_statement : Prop. Admitted.
+
+
+
+
+
+
+
+
+
+Tactic Notation "print_goal" :=
+  match goal with |- ?x => idtac x end.
+Tactic Notation "normalize" :=
+  repeat (print_goal; eapply multi_step ; [ (eauto 10; fail) | (instantiate; simpl) ]);
+  apply multi_refl.
+Hint Constructors step value : core.
+
+
+Example step_example1'' :
+  (P (C 3) (P (C 3) (C 4))) -->* (C 10).
+Proof.
+  normalize.
+Qed.
+
+Example step_example1''' : exists e',
+  (P (C 3) (P (C 3) (C 4))) -->* e'.
+Proof.
+  eexists. normalize.
+Qed.
+
+Theorem normalize_ex : exists e',
+  (P (C 3) (P (C 2) (C 1))) -->* e' /\ value e'.
+Proof.
+  eexists. split.
+  - normalize.
+  - constructor.
+Qed.
