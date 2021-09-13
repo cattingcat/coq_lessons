@@ -440,10 +440,13 @@ Inductive step : tm -> tm -> Prop :=
          t2 --> t2' ->
          <{v1 t2}> --> <{v1 t2'}>
 
+  | ST_Pred : forall t t',
+        t --> t' ->
+         <{pred t}> --> <{pred t'}>
   | ST_Pred_0 :
          <{pred 0}> --> <{0}>
-  | ST_Pred_s : forall t, 
-         <{pred (succ t)}> --> <{t}>
+  | ST_Pred_s : forall (t: nat), 
+         tm_pred (tm_const (S t)) --> <{t}>
 
   | ST_Succ : forall t t',
         t --> t' ->
@@ -642,15 +645,73 @@ Theorem preservation : forall t t' T,
   empty |- t \in T ->
   t --> t' ->
   empty |- t' \in T.
-Proof.
-Admitted.
+Proof with eauto.
+  intros t t' T HT. generalize dependent t'.
+  remember empty as Gamma.
+  induction HT;
+       intros t' HE; subst;
+       try solve [inversion HE; subst; auto].
+  - (* T_App *)
+    inversion HE; subst...
+    (* Most of the cases are immediate by induction,
+       and eauto takes care of them *)
+    + (* ST_AppAbs *)
+      apply substitution_preserves_typing with T2...
+      inversion HT1...
+Qed.
 
+
+(*
+  | T_Var : forall Gamma x T1,
+  | T_Abs : forall Gamma x T1 T2 t1,
+  | T_App : forall T1 T2 Gamma t1 t2,
+  | T_Const : forall Gamma (n: nat),
+  | T_Succ : forall Gamma t,
+  | T_Pred : forall Gamma t,
+  | T_Mult : forall t1 t2 Gamma,
+  | T_If : forall t1 t2 t3 T1 Gamma,
+*)
 Theorem progress : forall t T,
   empty |- t \in T ->
   value t \/ exists t', t --> t'.
 Proof.
-Admitted.
-
+  remember empty as e eqn:Eg.
+  intros t T Ht.
+  induction Ht; subst.
+  - (*var*) discriminate H.
+  - (*abs*) left. constructor.
+  - (*app*) right. 
+    destruct IHHt1 as [Hv1 | [t1' Ht1']]; try reflexivity.
+    + destruct IHHt2 as [Hv2 | [t2' Ht2']]; try reflexivity.
+      * inversion Ht1; subst; try (inversion Hv1); subst. eexists. apply ST_AppAbs. assumption.
+      * exists <{ t1 t2' }>. constructor. assumption. assumption.
+    + exists <{ t1' t2 }>. constructor. assumption.
+  - (*const*) left. constructor.
+  - (*succ*) destruct IHHt as [Hv | [t' Ht']]; try reflexivity.
+    + inversion Hv; subst; (try inversion Ht); subst.
+      right. exists (S x0). constructor.
+    + right. exists (<{ succ t' }>). constructor. assumption.
+  - (*pred*) destruct IHHt as [Hv | [t' Ht']]; try reflexivity.
+    + inversion Hv; subst; (try inversion Ht); subst.
+      right. destruct x0; eauto.
+    + right. exists (<{ pred t' }>). constructor. assumption.
+  - (*mul*) right. 
+    destruct IHHt1 as [Hv1 | [t1' Ht1']]; try reflexivity.
+    + destruct IHHt2 as [Hv2 | [t2' Ht2']]; try reflexivity.
+      * inversion Ht1; subst; try (inversion Hv1); subst. 
+        inversion Ht2; subst; try (inversion Hv2); subst.
+        exists (tm_const (n * n0)). apply ST_MulConst.
+      * exists <{ t1 * t2' }>. constructor. assumption. assumption.
+    + exists <{ t1' * t2 }>. constructor. assumption.
+  - (*if*) right. destruct IHHt1 as [Hv1 | [t1' Ht1']]; try reflexivity. 
+    + inversion Ht1; subst; try (inversion Hv1); subst.
+      destruct n.
+      * exists t2. constructor.
+      * exists t3. constructor. auto.
+    + exists <{ if0 t1' then t2 else t3 }>.
+      constructor.
+      assumption.
+Qed.
 
 End STLCArith.
 
