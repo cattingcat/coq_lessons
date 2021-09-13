@@ -85,15 +85,6 @@ where "'[' x ':=' s ']' t" := (subst x s t) (in custom stlc).
 
 Check <{[x:=true] x}>.
 
-(*
-Inductive tm : Type :=
-  | tm_var : string -> tm
-  | tm_app : tm -> tm -> tm
-  | tm_abs : string -> ty -> tm -> tm
-  | tm_true : tm
-  | tm_false : tm
-  | tm_if : tm -> tm -> tm -> tm.
-*)
 Inductive substi (s : tm) (x : string) : tm -> tm -> Prop :=
   | s_var1 :
       substi s x (tm_var x) s
@@ -210,7 +201,6 @@ Inductive step : tm -> tm -> Prop :=
       t1 --> t1' ->
       <{if t1 then t2 else t3}> --> <{if t1' then t2 else t3}>
 where "t '-->' t'" := (step t t').
-
 Hint Constructors step : core.
 
 Definition multistep := (multi step).
@@ -270,7 +260,6 @@ Inductive has_type : context -> tm -> ty -> Prop :=
        Gamma |- t3 \in T1 ->
        Gamma |- if t1 then t2 else t3 \in T1
 where "Gamma '|-' t '\in' T" := (has_type Gamma t T).
-
 Hint Constructors has_type : core.
 
 Example typing_example_1 :
