@@ -131,15 +131,11 @@ Inductive step : tm -> tm -> Prop :=
        t --> t' ->
        <{ t.fst }> --> <{ t'.fst }>
   | ST_PairFst : forall v1 v2,
-       value v1 ->
-       value v2 ->
        <{ (v1 , v2).fst }> --> <{ v1 }>
   | ST_PairSndStep : forall t t',
        t --> t' ->
        <{ t.snd }> --> <{ t'.snd }>
   | ST_PairSnd : forall v1 v2,
-       value v1 ->
-       value v2 ->
        <{ (v1 , v2).snd }> --> <{ v2 }>
 where "t '-->' t'" := (step t t').
 Hint Constructors step : core.
@@ -440,6 +436,101 @@ Proof with eauto.
 Qed.
 
 
+Lemma abs_is_bottom_for_abs: forall G x xT b T, G |- (\x:xT, b) \in T -> exists T1 T2, <{ T1 -> T2 }> <: T.
+Proof.
+  intros G x xT b T H.
+  remember <{ (\x:xT, b) }> as f eqn:Ef.
+  induction H; try (discriminate Ef).
+  - subst.
+    injection Ef as Ex Et Eb. subst.
+    exists xT, T1. constructor.
+  - subst.
+    destruct IHhas_type as [T2' [T3' H']]. reflexivity.
+    exists T2', T3'.
+    apply S_Trans with T1.
+    + apply H'.
+    + assumption.
+Qed.
+
+Lemma typing_inversion_abs : forall Gamma x S1 t2 T,
+     Gamma |- (\x:S1, t2) \in T ->
+     exists S2, <{ S1 -> S2 }> <: T  /\  (x |-> S1 ; Gamma) |- t2 \in S2.
+Proof.
+  intros G x S1 t2 T H.
+  remember <{ (\x:S1, t2) }> as f eqn:Ef.
+  induction H; try (discriminate Ef).
+  - injection Ef as Ex Et Eb. subst.
+    exists T1. split. 
+      constructor.
+      assumption.
+  - subst.
+    destruct IHhas_type as [T2' [T3' H']]. reflexivity.
+    exists T2'.
+    split.
+    * apply S_Trans with T1; assumption.
+    * assumption.
+Qed.
+
+Lemma sub_inversion_pair : forall U V1 V2,
+     U <: <{ V1 * V2 }> ->
+     exists U1 U2, U = <{ U1 * U2 }> /\ U1 <: V1 /\ U2 <: V2.
+Proof with eauto.
+  intros U V1 V2 Hs.
+  remember <{ V1 * V2 }> as V.
+  generalize dependent V2. generalize dependent V1.
+  induction Hs; intros V1 V2 Ev; subst; try (inversion Ev).
+  - exists V1, V2. split; try reflexivity. split; apply S_Refl.
+  - destruct (IHHs2 V1 V2) as [ U1 [ U2  [Eu [ Hv1s Hu2s] ] ] ]. reflexivity.
+    subst.
+    destruct (IHHs1 U1 U2) as [ U1' [ U2'  [Eu' [ Hv1s' Hu2s'] ] ] ]. reflexivity.
+    subst.
+    exists U1', U2'.
+    split. reflexivity.
+    split.
+    + apply (S_Trans _ _ _ Hv1s' Hv1s).
+    + apply (S_Trans _ _ _ Hu2s' Hu2s).
+  - exists S1, S2.
+    split. reflexivity.
+    split.
+    + rewrite <- H0. assumption.
+    + rewrite <- H1. assumption.
+Qed.
+
+
+Lemma canonical_forms_of_pair_types : forall Gamma s T1 T2,
+  Gamma |- s \in (T1 * T2) ->
+  value s ->
+  exists v1 v2, s = <{ (v1, v2) }>.
+Proof with eauto.
+  intros G s T1 T2 Ht Hv.
+  generalize dependent G.
+  generalize dependent T1.
+  generalize dependent T2.
+  induction Hv. 
+  - intros T1 T' G Ht. exfalso.
+    apply abs_is_bottom_for_abs in Ht.
+    destruct Ht as [T2' [T3' Ht]].
+    apply sub_inversion_pair in Ht.
+    destruct Ht as [U1' [U2' [Ht [Hu1 Hu2]]]].
+    discriminate Ht.
+  - intros T2 T1 G Ht. exfalso.
+    apply bool_if_bottom_for_true in Ht.
+    apply sub_inversion_pair in Ht.
+    destruct Ht as [U1' [U2' [Ht [Hu1 Hu2]]]].
+    discriminate Ht.
+  - intros T2 T1 G Ht. exfalso.
+    apply bool_if_bottom_for_false in Ht.
+    apply sub_inversion_pair in Ht.
+    destruct Ht as [U1' [U2' [Ht [Hu1 Hu2]]]].
+    discriminate Ht.
+  - intros T2 T1 G Ht. exfalso.
+    apply unit_is_bottom_for_unit in Ht.
+    apply sub_inversion_pair in Ht.
+    destruct Ht as [U1' [U2' [Ht [Hu1 Hu2]]]].
+    discriminate Ht.
+  - intros T2 T1 G Ht. exists v1, v2. reflexivity.
+Qed.
+
 
 Lemma abs_is_bottom_for_fun: forall G x T2 t1 T, G |- \ x : T2, t1 \in T -> exists T1, <{ T2 -> T1 }> <: T.
 Proof.
@@ -454,6 +545,46 @@ Proof.
     + apply H'.
     + assumption.
 Qed.
+
+Lemma typing_inversion_var : forall Gamma (x:string) T,
+  Gamma |- x \in T ->
+  exists S, Gamma x = Some S /\ S <: T.
+Proof with eauto.
+  intros G x T H.
+  remember (tm_var x) as t eqn:Et.
+  induction H; try (discriminate Et).
+  - exists T1. split.
+    + injection Et as Et. rewrite Et in H. assumption.
+    + constructor.
+  - destruct IHhas_type as [S' [Hl' Hr']]...
+Qed.
+
+
+Lemma typing_inversion_app : forall Gamma t1 t2 T2,
+  Gamma |- t1 t2 \in T2 ->
+  exists T1,  Gamma |- t1 \in (T1 -> T2) /\ Gamma |- t2 \in T1.
+Proof with eauto.
+  intros G t1 t2 T2 H.
+  remember <{ t1 t2 }> as t eqn:Et.
+  induction H; try (discriminate Et).
+  - exists T2. 
+    injection Et as Et1 Et2. subst.
+    split; assumption.
+  - destruct IHhas_type as [t2' [Hl' Hr']]...
+Qed.
+
+
+Lemma abs_arrow : forall x S1 s2 T1 T2,
+  empty |- (\x:S1, s2) \in (T1 -> T2) ->
+     T1 <: S1 /\ (x |-> S1 ; empty) |- s2 \in T2.
+Proof with eauto.
+  intros x S1 s2 T1 T2 Hty.
+  apply typing_inversion_abs in Hty.
+  destruct Hty as [S2 [Hsub Hty1]].
+  apply sub_inversion_arrow in Hsub.
+  destruct Hsub as [U1 [U2 [Heq [Hsub1 Hsub2]]]].
+  injection Heq as Heq; subst... Qed.
+
 
 Lemma canonical_forms_of_Bool : forall Gamma s,
   Gamma |- s \in Bool ->
@@ -482,13 +613,160 @@ Proof. intros G s H.
 Qed.
 
 
+Theorem progress : forall t T,
+     empty |- t \in T   ->   value t \/ (exists t', t --> t').
+Proof with eauto.
+  intros t T Ht.
+  remember empty as Gamma.
+  induction Ht; subst Gamma; auto.
+  - (* T_Var *)
+    discriminate.
+  - (* T_App *)
+    right.
+    destruct IHHt1; subst...
+    + (* t1 is a value *)
+      destruct IHHt2; subst...
+      * (* t2 is a value *)
+        eapply canonical_forms_of_arrow_types in Ht1; [|assumption].
+        destruct Ht1 as [x [S1 [s2 H1]]]. subst.
+        exists (<{ [x:=t2]s2 }>)...
+      * (* t2 steps *)
+        destruct H0 as [t2' Hstp]. exists <{ t1 t2' }>...
+    + (* t1 steps *)
+      destruct H as [t1' Hstp]. exists <{ t1' t2 }>...
+  - (* T_Test *)
+    right.
+    destruct IHHt1.
+    + (* t1 is a value *) eauto.
+    + apply canonical_forms_of_Bool in Ht1; [|assumption].
+      destruct Ht1; subst...
+    + destruct H. rename x into t1'. eauto.
+  - (* T_Pair *)
+    destruct IHHt1; subst...
+    + (* t1 is a value *)
+      destruct IHHt2; subst...
+      * (* t2 steps *)
+        destruct H0 as [t2' Hstp]. right. exists <{ (t1 , t2') }>...
+    + (* t1 steps *)
+      destruct H as [t1' Hstp]. right. exists <{ (t1' , t2) }>...
+  - (* T_PairFst *)
+    destruct IHHt...
+    + (* value pair *)
+      destruct (canonical_forms_of_pair_types _ _ _ _ Ht) as [v1 [v2 Ht']]; auto.
+      right. subst. exists v1. constructor.
+    + destruct H as [t' H]. right. exists (tm_fst t')...
+  - (* T_PairSnd *)
+    destruct IHHt...
+    + (* value pair *)
+      destruct (canonical_forms_of_pair_types _ _ _ _ Ht) as [v1 [v2 Ht']]; auto.
+      right. subst. exists v2. constructor.
+    + destruct H as [t' H]. right. exists (tm_snd t')...
+Qed.
 
+Lemma weakening : forall Gamma Gamma' t T,
+     inclusion Gamma Gamma' ->
+     Gamma |- t \in T ->
+     Gamma' |- t \in T.
+Proof.
+  intros Gamma Gamma' t T H Ht.
+  generalize dependent Gamma'.
+  induction Ht; eauto using inclusion_update.
+Qed.
 
+Lemma weakening_empty : forall Gamma t T,
+     empty |- t \in T ->
+     Gamma |- t \in T.
+Proof.
+  intros Gamma t T.
+  eapply weakening.
+  discriminate.
+Qed.
 
+Lemma substitution_preserves_typing : forall Gamma x U t v T,
+   (x |-> U ; Gamma) |- t \in T ->
+   empty |- v \in U ->
+   Gamma |- [x:=v]t \in T.
+Proof.
+Proof.
+  intros Gamma x U t v T Ht Hv.
+  remember (x |-> U; Gamma) as Gamma'.
+  generalize dependent Gamma.
+  induction Ht; intros Gamma' G; simpl; eauto.
+  - destruct (eqb_stringP x x0).
+    + subst. rewrite update_eq in H. injection H as H. subst. 
+      apply weakening_empty. assumption.
+    + subst. rewrite update_neq in H. 
+        constructor. assumption.
+        assumption.
+  - destruct (eqb_stringP x x0); subst.
+    + constructor.
+      rewrite update_shadow in Ht. 
+      assumption.
+    + constructor.
+      apply IHHt.
+      rewrite update_permute.
+        reflexivity.
+        assumption.
+Qed.
 
+Lemma pair_destr: forall v1 v2 T1 T2, 
+  empty |- (v1, v2) \in (T1 * T2) -> 
+  empty |- v1 \in T1  /\  empty |- v2 \in T2.
+Proof.
+  intros v1 v2 T1 T2 H.
+  remember <{(v1, v2)}> as p eqn:Ep.
+  remember <{(T1 * T2)}> as t eqn:Et.
+  generalize dependent T1.
+  generalize dependent T2.
+  induction H; try (discriminate Ep); subst.
+  - intros T2' T1' Hv. subst.
+    apply sub_inversion_pair in H0.
+    destruct H0 as [U1 [U2 [H' [Hu1 Hu2]]]]. subst.
+    assert (HG: Gamma |- v1 \in U1 /\ Gamma |- v2 \in U2). {
+      apply IHhas_type.
+        reflexivity.
+        reflexivity.
+    }
+    clear IHhas_type.
+    destruct HG as [Hvu1 Hvu2].
+    split.
+    + eapply T_Sub. apply Hvu1. apply Hu1.
+    + eapply T_Sub. apply Hvu2. apply Hu2.
+  - intros T1' T2' Ets. injection Ets as Ets1 Ets2. subst.
+    injection Ep as tv1 tv2. subst.
+    split.
+      assumption.
+      assumption.
+Qed.
 
-
-
+Theorem preservation : forall t t' T,
+     empty |- t \in T ->
+     t --> t' ->
+     empty |- t' \in T.
+Proof with eauto.
+  intros t t' T HT. generalize dependent t'.
+  remember empty as Gamma.
+  induction HT;
+       intros t' HE; subst;
+       try solve [inversion HE; subst; eauto].
+  - (* T_App *)
+    inversion HE; subst...
+    (* Most of the cases are immediate by induction,
+       and eauto takes care of them *)
+    + (* ST_AppAbs *)
+      destruct (abs_arrow _ _ _ _ _ HT1) as [HA1 HA2].
+      apply substitution_preserves_typing with T0...
+  - (* T_PairFst *)
+    inversion HE; subst...
+    apply pair_destr in HT.
+    destruct HT as [Ht1 Ht2].
+    assumption.
+  - (* T_PairSnd *)
+  inversion HE; subst...
+  apply pair_destr in HT.
+  destruct HT as [Ht1 Ht2].
+  assumption.
+Qed.
 
 
 
