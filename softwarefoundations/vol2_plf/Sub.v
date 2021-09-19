@@ -767,9 +767,3 @@ Proof with eauto.
   destruct HT as [Ht1 Ht2].
   assumption.
 Qed.
-
-
-
-
-
-
