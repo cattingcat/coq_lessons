@@ -656,19 +656,6 @@ End Examples.
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 Theorem progress : forall t T,
      empty |- t \in T ->
      value t \/ exists t', t --> t'.

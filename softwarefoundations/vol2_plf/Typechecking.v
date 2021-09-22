@@ -459,13 +459,180 @@ Module StepFunction.
 Import MoreStlc.
 Import STLCExtended.
 
+
+Fixpoint is_value (t: tm) : bool :=
+  match t with 
+  | <{ \ _ : _, _ }> => true
+  | tm_const _ => true
+  | <{inl _ v}> => is_value v
+  | <{inr _ v}> => is_value v
+  | <{nil _}> => true
+  | <{v1 :: v2}> => andb (is_value v1) (is_value v2)
+  | <{unit}> => true
+  | <{(v1, v2)}> => andb (is_value v1) (is_value v2)
+  | _ => false
+  end.
+
 (* Operational semantics as a Coq function. *)
-Fixpoint stepf (t : tm) : option tm. Admitted.
+Fixpoint stepf (t : tm) : option tm := 
+  match t with 
+  | tm_var _ => fail
+  | <{ \ _ : _, _ }> => fail
+  | tm_const _ => fail
+  | <{ nil _ }> => fail
+  | <{ unit }> => fail
+  | <{t1 t2}> => 
+    match stepf t1, stepf t2 with
+    | Some t1', _    => return <{t1' t2}>
+    | None, Some t2' => return <{t1 t2'}>
+    | None, None     => 
+      match t1 with 
+      | <{ (\x:T2, t) }> => return <{ [x:=t2]t1 }>
+      | _ => fail
+      end
+    end
+  | <{succ t1}> =>
+      match stepf t1 with
+      | Some t1' => return <{succ t1'}>
+      | None => 
+        match t1 with
+        | tm_const n => return (tm_const (S n))
+        | _ => fail
+        end
+      end
+  | <{pred t1}> =>
+      match stepf t1 with
+      | Some t1' => return <{pred t1'}>
+      | None => 
+        match t1 with
+        | tm_const n => return (tm_const (n - 1))
+        | _ => fail
+        end
+      end
+  | <{t1 * t2}> => 
+    match stepf t1, stepf t2 with
+    | Some t1', _    => return <{t1' * t2}>
+    | None, Some t2' => return <{t1 * t2'}>
+    | None, None     => 
+      match t1, t2 with 
+      | tm_const n1, tm_const n2 => return (tm_const (n1 * n2))
+      | _, _ => fail
+      end
+    end
+  | <{if0 t1 then t2 else t3}> =>
+      match stepf t1 with
+      | Some t1' => return <{if0 t1' then t2 else t3}>
+      | None => 
+        match t1 with
+        | tm_const 0 => return t2
+        | tm_const (S _) => return t3
+        | _ => fail
+        end
+      end
+  | <{inl T2 t1}> =>
+      t1' <- stepf t1 ;;
+      return <{inl T2 t1'}>
+  | <{inr T1 t2}> => 
+      t2' <- stepf t2 ;;
+      return <{inr T1 t2'}>
+  | <{case t0 of | inl x1 => t1 | inr x2 => t2}> =>
+      match stepf t0 with
+      | Some t0' => return <{case t0' of | inl x1 => t1 | inr x2 => t2}>
+      | None =>
+        match t0 with 
+        | <{inl T2 v0}> => return <{ [x1:=v0]t1 }>
+        | <{inr T1 v0}> => return <{ [x2:=v0]t2 }>
+        | _ => fail
+        end
+      end
+  | <{t1 :: t2}> =>
+      match stepf t1, stepf t2 with
+      | Some t1', _ => return <{t1' :: t2}>
+      | None, Some t2' => return <{t1 :: t2'}>
+      | None, None => fail
+      end
+  | <{case t1 of | nil => t2 | x1 :: x2 => t3}> =>
+      match stepf t1 with
+      | Some t1' => return <{case t1' of | nil => t2 | x1 :: x2 => t3}>
+      | None =>
+        match t1 with 
+        | <{ nil T1 }> => return <{ t2 }>
+        | <{v1 :: vl}> => return <{ [x2 := vl] ([x1 := v1] t3) }>
+        | _ => fail
+        end
+      end
+  | <{(t1 , t2)}> =>
+      match stepf t1, stepf t2 with
+      | Some t1', _ => return <{(t1' , t2)}>
+      | None, Some t2' => return <{(t1 , t2')}>
+      | None, None => fail
+      end
+  | <{ t.fst }> =>
+      match stepf t with
+      | Some t' => return <{ t'.fst }>
+      | None => 
+        match t with
+        | <{ (v1, v2) }> => return v1
+        | _ => fail
+        end
+      end
+  | <{ t.snd }> =>
+      match stepf t with
+      | Some t' => return <{ t'.snd }>
+      | None => 
+        match t with
+        | <{ (v1, v2) }> => return v2
+        | _ => fail
+        end
+      end
+  | <{ let v = t1 in t2 }> =>
+      match stepf t1 with
+      | Some t1' => return  <{ let v = t1' in t2 }>
+      | None =>  return <{ [v:=t1]t2 }>
+      end
+  | <{ fix t }> =>
+      match stepf t with
+      | Some t' => return <{ fix t' }>
+      | None => 
+        match t with
+        | <{ (\f:T, t) }> => return <{ [f:=fix (\f:T, t)]t }>
+        | _ => fail
+        end
+      end
+  end.
+
+Lemma sound_is_value: forall t,
+  is_value t = true   ->   value t.
+Proof.
+  intro t.
+  induction t; intro H; simpl in H; 
+    try (discriminate H);
+    try (constructor);
+    auto.
+  - Search (?x && ?y = true -> ?x = true /\ ?y = true).
+    apply andb_prop in H. destruct H. auto.
+  - apply andb_prop in H. destruct H. auto.
+  - apply andb_prop in H. destruct H. auto.
+  - apply andb_prop in H. destruct H. auto.
+Qed.
 
 (* Soundness of stepf. *)
 Theorem sound_stepf : forall t t',
     stepf t = Some t'   ->   t --> t'.
-Proof. Admitted.
+Proof.
+  intro t.
+  induction t; intros t' H; simpl in H; try (discriminate H).
+  - destruct (stepf t1) eqn:Es1.
+    + assert(G: t1 --> t). { apply IHt1. reflexivity. }
+      injection H as H. rewrite <- H.
+      apply ST_App1.
+      apply G.
+    + destruct (stepf t2) eqn:Es2.
+      * assert(G: t2 --> t). { apply IHt2. reflexivity. }
+        injection H as H. rewrite <- H.
+        apply ST_App2.
+        apply G.
+      * 
 
 (* Completeness of stepf. *)
 Theorem complete_stepf : forall t t',
