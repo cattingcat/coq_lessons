@@ -482,53 +482,64 @@ Fixpoint stepf (t : tm) : option tm :=
   | <{ nil _ }> => fail
   | <{ unit }> => fail
   | <{t1 t2}> => 
-    match stepf t1, stepf t2 with
-    | Some t1', _    => return <{t1' t2}>
-    | None, Some t2' => return <{t1 t2'}>
-    | None, None     => 
+    match is_value t1 , is_value t2 with
+    | true, true => 
       match t1 with 
-      | <{ (\x:T2, t) }> => return <{ [x:=t2]t1 }>
+      | <{ (\x:T2, t) }> => return <{ [x:=t2]t }>
       | _ => fail
       end
+    | true, false =>
+      t2' <- stepf t2 ;;
+      return <{t1 t2'}>
+    | false, _ =>
+      t1' <- stepf t1 ;;
+      return <{t1' t2}>
     end
   | <{succ t1}> =>
-      match stepf t1 with
-      | Some t1' => return <{succ t1'}>
-      | None => 
+    if is_value t1 
+      then
         match t1 with
         | tm_const n => return (tm_const (S n))
         | _ => fail
         end
-      end
+      else
+        t1' <- stepf t1 ;;
+        return <{succ t1'}>
   | <{pred t1}> =>
-      match stepf t1 with
-      | Some t1' => return <{pred t1'}>
-      | None => 
+    if is_value t1 
+      then
         match t1 with
         | tm_const n => return (tm_const (n - 1))
         | _ => fail
         end
-      end
+      else
+        t1' <- stepf t1 ;;
+        return <{pred t1'}>
   | <{t1 * t2}> => 
-    match stepf t1, stepf t2 with
-    | Some t1', _    => return <{t1' * t2}>
-    | None, Some t2' => return <{t1 * t2'}>
-    | None, None     => 
+    match is_value t1 , is_value t2 with
+    | true, true => 
       match t1, t2 with 
       | tm_const n1, tm_const n2 => return (tm_const (n1 * n2))
       | _, _ => fail
       end
+    | true, false =>
+      t2' <- stepf t2 ;;
+      return <{t1 * t2'}>
+    | false, _ =>
+      t1' <- stepf t1 ;;
+      return <{t1' * t2}>
     end
   | <{if0 t1 then t2 else t3}> =>
-      match stepf t1 with
-      | Some t1' => return <{if0 t1' then t2 else t3}>
-      | None => 
-        match t1 with
-        | tm_const 0 => return t2
-        | tm_const (S _) => return t3
-        | _ => fail
-        end
-      end
+      if is_value t1
+        then 
+          match t1 with
+          | tm_const 0 => return t2
+          | tm_const (S _) => return t3
+          | _ => fail
+          end
+        else 
+          t1' <- stepf t1 ;;
+          return <{if0 t1' then t2 else t3}>
   | <{inl T2 t1}> =>
       t1' <- stepf t1 ;;
       return <{inl T2 t1'}>
@@ -536,69 +547,83 @@ Fixpoint stepf (t : tm) : option tm :=
       t2' <- stepf t2 ;;
       return <{inr T1 t2'}>
   | <{case t0 of | inl x1 => t1 | inr x2 => t2}> =>
-      match stepf t0 with
-      | Some t0' => return <{case t0' of | inl x1 => t1 | inr x2 => t2}>
-      | None =>
-        match t0 with 
-        | <{inl T2 v0}> => return <{ [x1:=v0]t1 }>
-        | <{inr T1 v0}> => return <{ [x2:=v0]t2 }>
-        | _ => fail
-        end
-      end
+      if is_value t0
+        then 
+          match t0 with
+          | <{inl T2 v0}> => return <{ [x1:=v0]t1 }>
+          | <{inr T1 v0}> => return <{ [x2:=v0]t2 }>
+          | _ => fail
+          end
+        else 
+          t0' <- stepf t0 ;;
+          return <{case t0' of | inl x1 => t1 | inr x2 => t2}>
   | <{t1 :: t2}> =>
-      match stepf t1, stepf t2 with
-      | Some t1', _ => return <{t1' :: t2}>
-      | None, Some t2' => return <{t1 :: t2'}>
-      | None, None => fail
+      match is_value t1 , is_value t2 with
+      | true, true => fail
+      | true, false =>
+        t2' <- stepf t2 ;;
+        return <{t1 :: t2'}>
+      | false, _ =>
+        t1' <- stepf t1 ;;
+        return <{t1' :: t2}>
       end
   | <{case t1 of | nil => t2 | x1 :: x2 => t3}> =>
-      match stepf t1 with
-      | Some t1' => return <{case t1' of | nil => t2 | x1 :: x2 => t3}>
-      | None =>
-        match t1 with 
-        | <{ nil T1 }> => return <{ t2 }>
-        | <{v1 :: vl}> => return <{ [x2 := vl] ([x1 := v1] t3) }>
-        | _ => fail
-        end
-      end
+      if is_value t1
+        then 
+          match t1 with
+          | <{ nil T1 }> => return <{ t2 }>
+          | <{v1 :: vl}> => return <{ [x2 := vl] ([x1 := v1] t3) }>
+          | _ => fail
+          end
+        else 
+          t1' <- stepf t1 ;;
+          return <{case t1' of | nil => t2 | x1 :: x2 => t3}>
   | <{(t1 , t2)}> =>
-      match stepf t1, stepf t2 with
-      | Some t1', _ => return <{(t1' , t2)}>
-      | None, Some t2' => return <{(t1 , t2')}>
-      | None, None => fail
+      match is_value t1 , is_value t2 with
+      | true, true => fail
+      | true, false =>
+        t2' <- stepf t2 ;;
+        return <{(t1 , t2')}>
+      | false, _ =>
+        t1' <- stepf t1 ;;
+        return <{(t1' , t2)}>
       end
   | <{ t.fst }> =>
-      match stepf t with
-      | Some t' => return <{ t'.fst }>
-      | None => 
-        match t with
-        | <{ (v1, v2) }> => return v1
-        | _ => fail
-        end
-      end
+      if is_value t 
+        then
+          match t with 
+          | <{(t1, t2)}> => return t1
+          | _ => fail
+          end
+        else
+          t' <- stepf t ;;
+          return <{ t'.fst }>
   | <{ t.snd }> =>
-      match stepf t with
-      | Some t' => return <{ t'.snd }>
-      | None => 
-        match t with
-        | <{ (v1, v2) }> => return v2
-        | _ => fail
-        end
-      end
+      if is_value t 
+        then
+          match t with 
+          | <{(t1, t2)}> => return t2
+          | _ => fail
+          end
+        else
+          t' <- stepf t ;;
+          return <{ t'.snd }>
   | <{ let v = t1 in t2 }> =>
-      match stepf t1 with
-      | Some t1' => return  <{ let v = t1' in t2 }>
-      | None =>  return <{ [v:=t1]t2 }>
-      end
+      if is_value t1
+        then return <{ [v:=t1]t2 }>
+        else 
+          t1' <- stepf t1 ;;
+          return  <{ let v = t1' in t2 }>
   | <{ fix t }> =>
-      match stepf t with
-      | Some t' => return <{ fix t' }>
-      | None => 
-        match t with
-        | <{ (\f:T, t) }> => return <{ [f:=fix (\f:T, t)]t }>
-        | _ => fail
-        end
-      end
+      if is_value t 
+        then
+          match t with 
+          | <{(\f:T, t)}> => return <{ [f:=fix (\f:T, t)]t }>
+          | _ => fail
+          end
+        else
+          t' <- stepf t ;;
+          return <{ fix t' }>
   end.
 
 Lemma sound_is_value: forall t,
@@ -615,6 +640,30 @@ Proof.
   - apply andb_prop in H. destruct H. auto.
   - apply andb_prop in H. destruct H. auto.
 Qed.
+Hint Resolve sound_is_value : core.
+
+Lemma sound_is_value_ref: forall t,
+  value t   ->   is_value t = true.
+Proof.
+  intro t.
+  induction t; intro H; simpl in H; unfold is_value; simpl; try (reflexivity); try (inversion H).
+  - subst. apply IHt. assumption.
+  - subst. apply IHt. assumption.
+  - subst. 
+    Search (?x = true /\ ?y = true -> ?x && ?y = true).
+    apply andb_true_intro.
+    split. 
+      apply IHt1. assumption.
+      apply IHt2. assumption.
+  - apply andb_true_intro.
+    split. 
+      apply IHt1. assumption.
+      apply IHt2. assumption.
+Qed.
+Hint Resolve sound_is_value_ref : core.
+
+Lemma string_der_refl: forall s, eqb_string s s = true.
+Proof. intro s. unfold eqb_string. destruct (string_dec s s); auto. Qed.
 
 (* Soundness of stepf. *)
 Theorem sound_stepf : forall t t',
@@ -622,22 +671,221 @@ Theorem sound_stepf : forall t t',
 Proof.
   intro t.
   induction t; intros t' H; simpl in H; try (discriminate H).
-  - destruct (stepf t1) eqn:Es1.
-    + assert(G: t1 --> t). { apply IHt1. reflexivity. }
-      injection H as H. rewrite <- H.
-      apply ST_App1.
-      apply G.
-    + destruct (stepf t2) eqn:Es2.
-      * assert(G: t2 --> t). { apply IHt2. reflexivity. }
-        injection H as H. rewrite <- H.
-        apply ST_App2.
-        apply G.
-      * 
+  - destruct (is_value t1) eqn:Es1.
+    + (* t1 val *)
+      destruct (is_value t2) eqn:Es2.
+      * (* t2 val *)
+        destruct t1; try (discriminate H).
+        injection H as H. rewrite <- H. constructor. 
+        apply sound_is_value. assumption.
+      * destruct (stepf t2); try (discriminate H).
+        injection H as H. rewrite <- H. constructor.
+          apply sound_is_value. assumption.
+          apply IHt2. reflexivity.
+    + destruct (stepf t1); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt1. reflexivity.
+  - destruct (is_value t) eqn:Es.
+    + destruct t eqn: Et; try (discriminate H).
+      injection H as H. subst. constructor.
+    + destruct (stepf t); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt. reflexivity.
+  - destruct (is_value t) eqn:Es.
+    + destruct t eqn: Et; try (discriminate H).
+      injection H as H. subst. constructor.
+    + destruct (stepf t); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt. reflexivity.
+  - destruct (is_value t1) eqn:Es1.
+    + (* t1 val *)
+      destruct (is_value t2) eqn:Es2.
+      * (* t2 val *)
+        destruct t1; try (discriminate H).
+        destruct t2 eqn: Et; try (discriminate H).
+        injection H as H. rewrite <- H. constructor. 
+      * destruct (stepf t2); try (discriminate H).
+        injection H as H. rewrite <- H. constructor.
+          apply sound_is_value. assumption.
+          apply IHt2. reflexivity.
+    + destruct (stepf t1); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt1. reflexivity.
+  - destruct (is_value t1) eqn:Es.
+    + destruct t1 eqn: Et; try (discriminate H).
+      destruct n.
+      -- injection H as H. subst. constructor.
+      -- injection H as H. subst. constructor.
+    + destruct (stepf t1); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt1. reflexivity.
+  - destruct (stepf t0) eqn:Es.
+    + injection H as H. subst. constructor.
+      apply IHt. reflexivity.
+    + discriminate H.
+  - destruct (stepf t0) eqn:Es.
+    + injection H as H. subst. constructor.
+      apply IHt. reflexivity.
+    + discriminate H.
+  - destruct (is_value t1) eqn:Es.
+    + destruct t1 eqn: Et; try (discriminate H); injection H as H.
+      -- subst. constructor.
+         apply sound_is_value. assumption.
+      -- subst. constructor.
+         apply sound_is_value. assumption.
+    + destruct (stepf t1); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt1. reflexivity.
+  - destruct (is_value t1) eqn:Es1.
+    + (* t1 val *)
+      destruct (is_value t2) eqn:Es2.
+      * (* t2 val *) discriminate H.
+      * destruct (stepf t2); try (discriminate H).
+        injection H as H. rewrite <- H. constructor.
+          apply sound_is_value. assumption.
+          apply IHt2. reflexivity.
+    + destruct (stepf t1); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt1. reflexivity.
+  - destruct (is_value t1) eqn:Es.
+    + destruct t1 eqn: Et; try (discriminate H); injection H as H.
+      -- subst. constructor.
+      -- subst. simpl in Es. apply andb_prop in Es. destruct Es as [Es1 Es2]. constructor.
+         auto.
+         auto.
+    + destruct (stepf t1); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt1. reflexivity.
+  - destruct (is_value t1) eqn:Es1.
+    + (* t1 val *)
+      destruct (is_value t2) eqn:Es2.
+      * (* t2 val *) discriminate H.
+      * destruct (stepf t2); try (discriminate H).
+        injection H as H. rewrite <- H. constructor.
+          apply sound_is_value. assumption.
+          apply IHt2. reflexivity.
+    + destruct (stepf t1); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt1. reflexivity.
+  - destruct (is_value t) eqn:Es.
+    + destruct t eqn: Et; try (discriminate H).
+      injection H as H. subst.
+      simpl in Es. apply andb_prop in Es. destruct Es as [Es1 Es2].
+      constructor.
+         auto.
+         auto.
+    + destruct (stepf t); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt. reflexivity.
+  - destruct (is_value t) eqn:Es.
+    + destruct t eqn: Et; try (discriminate H).
+      injection H as H. subst.
+      simpl in Es. apply andb_prop in Es. destruct Es as [Es1 Es2].
+      constructor.
+         auto.
+         auto.
+    + destruct (stepf t); try (discriminate H).
+      injection H as H. rewrite <- H. constructor.
+      apply IHt. reflexivity.
+  - destruct (is_value t1) eqn:Es.
+    + injection H as H. subst. constructor. auto.
+    + destruct (stepf t1); try (discriminate H).
+      injection H as H. subst.
+      constructor.
+      apply IHt1. reflexivity.
+  - destruct (is_value t) eqn:Es.
+    + destruct t; try (discriminate H).
+      injection H as H. subst. constructor.
+    + destruct (stepf t); try (discriminate H).
+      injection H as H. subst.
+      constructor.
+      apply IHt. reflexivity.
+Qed.
+
+Search (?a && ?b = ?b && ?a).
+Lemma isnt_value: forall t t', 
+  t --> t'  ->  is_value t = false.
+Proof.
+  intros t t' H.
+  induction H; simpl; 
+    try reflexivity;
+    try assumption.
+  - rewrite IHstep. reflexivity.
+  - rewrite IHstep. rewrite andb_comm. reflexivity.
+  - rewrite IHstep. reflexivity.
+  - rewrite IHstep. rewrite andb_comm. reflexivity.
+Qed.
+
 
 (* Completeness of stepf. *)
 Theorem complete_stepf : forall t t',
     t --> t'   ->   stepf t = Some t'.
-Proof. Admitted.
+Proof. 
+  intros t t' H.
+  induction H; simpl.
+  - apply sound_is_value_ref in H. rewrite H. reflexivity.
+  - apply isnt_value in H. rewrite H. rewrite IHstep. reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    apply isnt_value in H0. rewrite H0.
+    rewrite IHstep. reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - reflexivity.
+  - reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    apply isnt_value in H0. rewrite H0.
+    rewrite IHstep. reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - reflexivity.
+  - reflexivity.
+  - rewrite IHstep. reflexivity.
+  - rewrite IHstep. reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    apply isnt_value in H0. rewrite H0.
+    rewrite IHstep. reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    apply sound_is_value_ref in H0. rewrite H0.
+    simpl. reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    apply isnt_value in H0. rewrite H0.
+    rewrite IHstep. reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    apply sound_is_value_ref in H0. rewrite H0.
+    simpl. reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    apply sound_is_value_ref in H0. rewrite H0.
+    simpl. reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - apply sound_is_value_ref in H. rewrite H.
+    reflexivity.
+  - apply isnt_value in H. rewrite H.
+    rewrite IHstep. reflexivity.
+  - reflexivity.
+Qed.
 
 End StepFunction.
 
