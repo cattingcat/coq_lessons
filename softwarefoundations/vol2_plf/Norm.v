@@ -762,6 +762,15 @@ Proof.
    destruct a. reflexivity.
 Qed.
 
+Lemma msubst_if : forall ss t1 t2 t3,
+    msubst ss <{ if t1 then t2 else t3 }> = 
+      <{ if {msubst ss t1} then {msubst ss t2} else {msubst ss t3} }>.
+Proof.
+ induction ss; intros.
+ - reflexivity.
+ - destruct a. simpl. apply IHss.
+Qed.
+
 Lemma mupdate_lookup : forall (c : tass) (x:string),
     lookup x c = (mupdate empty c) x.
 Proof.
@@ -926,7 +935,14 @@ Proof.
     split. unfold halts. exists <{ false }>. auto.
     auto.
   - (* if *)
-    simpl.
+    rewrite (msubst_if env0 t1 t2 t3).
+    unfold R. 
+    assert (G1: empty |- <{ if {msubst env0 t1} then {msubst env0 t2} else {msubst env0 t3} }> \in T1). {
+      destruct (IHHT1 c H env0 V) as [H1 [H1' _]].
+      assert (GG1: R T1 (msubst env0 t2)). { apply (IHHT2 c H env0 V). }
+      assert (GG2: R T1 (msubst env0 t3)). { apply (IHHT3 c H env0 V). }
+      admit.
+    }
   (* TODO *) Admitted.
 
 Theorem normalization : forall t T, empty |- t \in T  ->  halts t.
