@@ -1157,7 +1157,5 @@ Proof. intros c1 b c2 c3. unfold cequiv. intros st st'. unfold p5, p6. split; in
       apply E_Skip.
 Qed.
 
-
 End ImpFor.
-
 

@@ -270,4 +270,3 @@ Proof.
       }
       apply G.
 Qed.
-
