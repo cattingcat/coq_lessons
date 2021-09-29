@@ -204,8 +204,3 @@ Proof.
     assumption.
 Qed.
 
-
-
-
-
-
