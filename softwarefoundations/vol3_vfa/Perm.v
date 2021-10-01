@@ -203,4 +203,3 @@ Proof.
     apply IHPermutation1.
     assumption.
 Qed.
-
