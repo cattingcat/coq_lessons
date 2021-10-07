@@ -7,6 +7,11 @@ From Coq Require Export Lia.
 From Coq Require Export Lists.List.
 Export ListNotations.
 From Coq Require Export Permutation.
+From Coq Require Import Logic.FunctionalExtensionality.
+From VFA Require Import Perm.
+From VFA Require Import Maps.
+From VFA Require Import Sort.
+
 
 From VFA Require Import Perm.
 From VFA Require Import Sort.
@@ -650,7 +655,7 @@ Proof. Admitted.
 
 
 (* Model-based Specifications*)
-(*
+
 Fixpoint map_of_list {V : Type} (el : list (key * V)) : partial_map V :=
   match el with
   | []            => empty
@@ -670,9 +675,173 @@ Definition map_bound {V : Type} (k : key) (m : partial_map V) : bool :=
   | Some _ => true
   | None => false
   end.
-*)
 
 
+Lemma in_fst : forall (X Y: Type) (lst: list (X * Y)) (x: X) (y: Y),
+    In (x, y) lst -> In x (map fst lst).
+Proof.
+  intros X Y lst.
+  induction lst; simpl; intros.
+  - apply H.
+  - destruct H.
+    + left. rewrite H. reflexivity.
+    + right. eapply IHlst. apply H.
+Qed.
+
+Lemma in_map_of_list : forall (V: Type) (el: list (key * V)) (k: key) (v: V),
+    NoDup (map fst el) ->
+    In (k,v) el -> 
+    (map_of_list el) k = Some v.
+Proof.
+  intros V el.
+  induction el; simpl; intros.
+  - exfalso. apply H0.
+  - destruct H0.
+    + rewrite H0.
+      unfold update, t_update.
+      rewrite Nat.eqb_refl.
+      reflexivity.
+    + destruct a.
+      unfold update, t_update.
+      simpl in H.
+      inversion H; subst.
+      assert (G: k0 <> k). {
+        intros HContra.
+        subst.
+        apply in_fst in H0.
+        apply H3. apply H0.
+      }
+      rewrite <- Nat.eqb_neq in G.
+      rewrite G.
+      apply IHel.
+      * inversion H; subst.
+        assumption.
+      * assumption.
+Qed.
+
+
+
+Lemma not_in_map_of_list : forall (V: Type) (el: list (key * V)) (k: key),
+    ~In k (map fst el) -> (map_of_list el) k = None.
+Proof.
+  intros V el.
+  induction el; simpl; intros.
+  - reflexivity.
+  - destruct a.
+    unfold update, t_update.
+    assert (G: k0 =? k = false). {
+      apply Nat.eqb_neq.
+      intro Hcontra.
+      apply H. left. simpl. assumption.
+    }
+    rewrite G.
+    apply IHel.
+    assert (G' : ~ In k (map fst el)). {
+      intro HContra.
+      apply H. right. assumption.
+    }
+    apply G'.
+Qed.
+
+Lemma empty_relate : forall (V: Type),
+    @Abs V empty_tree = empty.
+Proof.
+  reflexivity.
+Qed.
+
+
+
+
+Lemma tst: forall V P (t: list (key * V)) k',
+  Forall (fun '(k, v) => P k) t ->
+  ~P k' ->
+  map_of_list t k' = None.
+Proof.
+  intros V P t.
+  induction t; intros.
+  - simpl. reflexivity.
+  - simpl.
+    destruct a.
+    inversion H; subst.
+    unfold update, t_update.
+    bdestruct (k =? k').
+    + subst. exfalso. apply H0. apply H3.
+    + apply IHt.
+      assumption.
+      assumption.
+Qed.
+
+
+Lemma forall_trans_pm: forall V P (l: list (key * V)),
+  Forall (fun k : key => P k) (map fst l) -> Forall (fun '(k, _) => P k) l.
+Proof.
+  intros.
+  induction l.
+  - auto.
+  - inversion H; subst.
+    constructor.
+    + destruct a.
+      simpl in H2.
+      assumption.
+    + auto.
+Qed.
+
+
+Lemma bound_relate_l : forall (V: Type) (l r: tree V) (k k': key) v,
+    BST (T l k v r) ->
+    k' < k ->
+    map_bound k' (Abs (T l k v r)) = bound k' l.
+Proof.
+  intros V l.
+  induction l; intros.
+  - simpl in *.
+    inversion H; subst.
+    unfold Abs. simpl.
+    assert (G: update (map_of_list (elements r)) k v k' = None). {
+      unfold update, t_update.
+      bdestruct (k =? k').
+      - lia.
+      - apply (tst _ (fun i => i > k)).
+        + apply forall_transform in H6.
+          apply forall_trans_pm in H6.
+          auto.
+        + intro Hcontra. lia.
+    }
+    unfold map_bound.
+    rewrite G.
+    reflexivity.
+  - simpl in *.
+    inversion H; subst.
+Admitted.
+
+Theorem bound_relate : forall (V: Type) (t: tree V) (k: key),
+    BST t ->
+    map_bound k (Abs t) = bound k t.
+Proof. Admitted.
+
+Lemma lookup_relate : forall (V: Type) (t: tree V) (d: V) (k: key),
+    BST t -> find d k (Abs t) = lookup d k t.
+Proof. Admitted.
+
+
+Lemma insert_relate : forall (V: Type) (t: tree V) (k: key) (v: V),
+  BST t -> Abs (insert k v t) = update (Abs t) k v.
+Proof.
+  (* TODO: find a direct proof that doesn't rely on kvs_insert_elements *)
+    unfold Abs.
+  intros.
+  rewrite kvs_insert_elements; auto.
+  remember (elements t) as l.
+  clear -l. (* clear everything not about l *)
+  (* Hint: proceed by induction on l. *)
+    (* FILL IN HERE *) Admitted.
+
+Lemma elements_relate : forall (V: Type) (t: tree V),
+  BST t ->
+  map_of_list (elements t) = Abs t.
+Proof.
+  unfold Abs. intros. reflexivity.
+Qed.
 
 
 

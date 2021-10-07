@@ -1,3 +1,12 @@
+Set Warnings "-notation-overridden,-parsing,-deprecated-hint-without-locality".
+From Coq Require Import Strings.String.  (* for manual grading *)
+From Coq Require Export Bool.Bool.
+From Coq Require Export Arith.Arith.
+From Coq Require Export Arith.EqNat.
+From Coq Require Export Lia.
+From Coq Require Export Lists.List.
+Export ListNotations.
+
 Inductive tstind : nat -> Type :=
   kek (i: nat): forall (n: nat), tstind n.
 
@@ -30,5 +39,10 @@ Definition inl_sumT A B (a: A) := @existT bool (fun (b : bool) => if b then A el
 
 Print ex. (* Sigma type for Prop *)
 Print sigT. (* Sigma for Type *)
+Print sig.
 
 Locate "exists".
+
+Definition even_nat := {x : nat | Nat.Even x}.
+
+Print even_nat.
