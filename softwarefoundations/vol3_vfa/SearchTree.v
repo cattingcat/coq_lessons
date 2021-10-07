@@ -430,4 +430,252 @@ Proof.
   - reflexivity.
 Qed.
 
-(* Part 2: Sorted (Advanced) TODO *)
+(* Part 2: Sorted (Advanced) *)
+
+
+Lemma sorted_app: forall l1 l2 x,
+  Sort.sorted l1 -> Sort.sorted l2 ->
+  Forall (fun n => n < x) l1 -> Forall (fun n => n > x) l2 ->
+  Sort.sorted (l1 ++ x :: l2).
+Proof.
+  intro l1.
+  induction l1; simpl; intros.
+  - destruct l2.
+    + constructor.
+    + inversion H2; subst.
+      constructor; try lia; try assumption.
+  - inversion H1; subst.
+    inversion H; subst.
+    + simpl.
+      constructor.
+      * lia.
+      * simpl in IHl1.
+        apply IHl1; auto.
+        constructor.
+    + simpl.
+      constructor.
+      * apply H7.
+      * simpl in IHl1.
+        apply IHl1; auto.
+Qed.
+
+Definition list_keys {V : Type} (lst : list (key * V)) :=  map fst lst.
+
+Search (map ?f (?l1 ++ ?l2)).
+Search (Forall ?p (?l1 ++ ?l2)).
+
+Lemma forall_transform: forall V P t,
+  ForallT (fun (k : key) (_ : V) => P k) t -> Forall (fun k : key => P k) (map fst (elements t)).
+Proof.
+  intros V P t.
+  induction t; simpl; intros.
+  - constructor.
+  - destruct H as [H1 [H2 H3]].
+    apply IHt1 in H2.
+    apply IHt2 in H3.
+    rewrite map_app.
+    apply Forall_app.
+    split.
+    + apply H2.
+    + simpl.
+      constructor.
+      * apply H1.
+      * apply H3.
+Qed.
+
+Theorem sorted_elements : forall (V : Type) (t : tree V),
+    BST t -> Sort.sorted (list_keys (elements t)).
+Proof.
+  intros V t.
+  induction t; simpl; intros.
+  - constructor.
+  - unfold list_keys in *.
+    rewrite map_app.
+    simpl.
+    inversion H; subst.
+    apply sorted_app; auto.
+    + apply forall_transform.
+      apply H4.
+    + apply forall_transform.
+      apply H5.
+Qed.
+
+
+(* Part 3: No Duplicates *)
+Print NoDup.
+
+Definition disjoint {X:Type} (l1 l2: list X) := forall (x : X),
+    In x l1 -> ~In x l2.
+
+Search (In ?a (?l1 ++ ?l2)).
+Lemma NoDup_append : forall (X:Type) (l1 l2: list X),
+  NoDup l1 -> 
+  NoDup l2 -> 
+  disjoint l1 l2 ->
+  NoDup (l1 ++ l2).
+Proof.
+  intros X l1.
+  induction l1; simpl; intros.
+  - apply H0.
+  - inversion H; subst.
+    constructor.
+    + assert (G: ~ In a l2). {
+        specialize (H1 a).
+        simpl in H1.
+        apply H1.
+        left.
+        reflexivity.
+      }
+      intros HContra.
+      apply in_app_or in HContra.
+      destruct HContra.
+      * apply H4. apply H2.
+      * apply G. apply H2.
+    + apply IHl1; auto.
+      intros x HIn HContra.
+      apply (H1 x).
+      * simpl. right. apply HIn.
+      * apply HContra.
+Qed.
+
+Search Forall.
+
+Theorem elements_nodup_keys : forall (V : Type) (t : tree V),
+    BST t ->
+    NoDup (list_keys (elements t)).
+Proof.
+  intros.
+  induction H; simpl.
+  - constructor.
+  - unfold list_keys in *.
+    rewrite map_app.
+    simpl.
+    apply NoDup_append.
+    + assumption.
+    + constructor.
+      * apply forall_transform in H, H0.
+        rewrite Forall_forall in H, H0.
+        intro HContra.
+        apply H0 in HContra.
+        lia.
+      * assumption.
+    + intros x' Hl Hr.
+      simpl in Hr.
+      apply forall_transform in H, H0.
+      rewrite Forall_forall in H, H0.
+      assert (G: x' < x). { apply H. apply Hl. }
+      destruct Hr as [Hr | Hr].
+      * lia.
+      * assert (G': x' > x). { apply H0. apply Hr. }
+        lia.
+Qed.
+
+
+
+
+Fixpoint fast_elements_tr {V : Type} (t : tree V)
+         (acc : list (key * V)) : list (key * V) :=
+  match t with
+  | E         => acc
+  | T l k v r => fast_elements_tr l ((k, v) :: fast_elements_tr r acc)
+  end.
+
+Definition fast_elements {V : Type} (t : tree V) : list (key * V) :=
+  fast_elements_tr t [].
+
+Lemma fast_elements_tr_helper : forall (V : Type) (t : tree V) (lst : list (key * V)),
+    fast_elements_tr t lst = elements t ++ lst.
+Proof.
+  intros V t.
+  induction t; simpl; intros.
+  - reflexivity.
+  - rewrite IHt1.
+    rewrite IHt2.
+    rewrite app_assoc_reverse.
+    reflexivity.
+Qed.
+
+
+Lemma fast_elements_eq_elements : forall (V : Type) (t : tree V),
+    fast_elements t = elements t.
+Proof.
+  intros V t.
+  induction t; simpl.
+  - reflexivity.
+  - unfold fast_elements. simpl.
+    rewrite fast_elements_tr_helper.
+    rewrite fast_elements_tr_helper.
+    rewrite app_nil_r.
+    reflexivity.
+Qed.
+
+Corollary fast_elements_correct : forall (V : Type) (k : key) (v d : V) (t : tree V),
+    BST t ->
+    In (k, v) (fast_elements t) ->
+    bound k t = true /\ lookup d k t = v.
+Proof.
+  intros. rewrite fast_elements_eq_elements in *.
+  apply elements_correct; assumption.
+Qed.
+
+
+(* An Algebraic Specification of elements *)
+
+Fixpoint kvs_insert {V : Type} (k : key) (v : V) (kvs : list (key * V)) :=
+  match kvs with
+  | []               => [(k, v)]
+  | (k', v') :: kvs' =>
+    if k <? k' then (k, v) :: kvs
+    else if k >? k' then (k', v') :: kvs_insert k v kvs'
+         else (k, v) :: kvs'
+  end.
+
+Lemma kvs_insert_split :
+  forall (V : Type) (v v0 : V) (e1 e2 : list (key * V)) (k k0 : key),
+    Forall (fun '(k',_) => k' < k0) e1 ->
+    Forall (fun '(k',_) => k' > k0) e2 ->
+    kvs_insert k v (e1 ++ (k0,v0) :: e2) =
+    if k <? k0 then
+      (kvs_insert k v e1) ++ (k0,v0)::e2
+    else if k >? k0 then
+           e1 ++ (k0,v0)::(kvs_insert k v e2)
+         else
+           e1 ++ (k,v)::e2.
+Proof. Admitted.
+
+Lemma kvs_insert_elements : forall (V : Type) (t : tree V),
+    BST t ->
+    forall (k : key) (v : V), elements (insert k v t) = kvs_insert k v (elements t).
+Proof. Admitted.
+
+
+(* Model-based Specifications*)
+(*
+Fixpoint map_of_list {V : Type} (el : list (key * V)) : partial_map V :=
+  match el with
+  | []            => empty
+  | (k, v) :: el' => update (map_of_list el') k v
+  end.
+
+Definition Abs {V : Type} (t : tree V) : partial_map V :=  map_of_list (elements t).
+
+Definition find {V : Type} (d : V) (k : key) (m : partial_map V) : V :=
+  match m k with
+  | Some v => v
+  | None => d
+  end.
+
+Definition map_bound {V : Type} (k : key) (m : partial_map V) : bool :=
+  match m k with
+  | Some _ => true
+  | None => false
+  end.
+*)
+
+
+
+
+
+
+
+
