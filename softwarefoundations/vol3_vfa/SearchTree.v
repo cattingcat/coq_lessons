@@ -921,3 +921,200 @@ Lemma elements_relate : forall (V: Type) (t: tree V),
 Proof.
   unfold Abs. intros. reflexivity.
 Qed.
+
+
+(* An Alternative Abstraction Relation *)
+
+Definition union {X} (m1 m2: partial_map X) : partial_map X :=
+  fun k =>
+    match (m1 k, m2 k) with
+    | (None,   None)   => None
+    | (None,   Some v) => Some v
+    | (Some v, None)   => Some v
+    | (Some _, Some _) => None
+    end.
+
+Lemma union_left : forall {X} (m1 m2: partial_map X) k,
+    m2 k = None -> union m1 m2 k = m1 k.
+Proof.
+  intros.
+  unfold union.
+  rewrite H.
+  destruct (m1 k); reflexivity.
+Qed.
+
+Lemma union_right : forall {X} (m1 m2: partial_map X) k,
+    m1 k = None -> union m1 m2 k = m2 k.
+Proof.
+  intros.
+  unfold union.
+  rewrite H.
+  destruct (m2 k); reflexivity.
+Qed.
+
+Lemma union_both : forall {X} (m1 m2 : partial_map X) k v1 v2,
+    m1 k = Some v1 ->
+    m2 k = Some v2 ->
+    union m1 m2 k = None.
+Proof.
+  intros.
+  unfold union.
+  rewrite H, H0.
+  reflexivity.
+Qed.
+
+Lemma union_update_right : forall {X} (m1 m2: partial_map X) k v,
+    m1 k = None ->
+    update (union m1 m2) k v = union m1 (update m2 k v).
+Proof.
+  intros.
+  unfold union, update, t_update.
+  extensionality o.
+  bdestruct (k =? o).
+  - subst. rewrite H. reflexivity.
+  - reflexivity.
+Qed.
+
+Lemma union_update_left : forall {X} (m1 m2: partial_map X) k v,
+    m2 k = None ->
+    update (union m1 m2) k v = union (update m1 k v) m2.
+Proof.
+  intros.
+  unfold union, update, t_update.
+  extensionality o.
+  bdestruct (k =? o).
+  - subst. rewrite H. reflexivity.
+  - reflexivity.
+Qed.
+
+Fixpoint map_of_tree {V : Type} (t: tree V) : partial_map V :=
+  match t with
+  | E         => empty
+  | T l k v r => update (union (map_of_tree l) (map_of_tree r)) k v
+  end.
+
+Lemma map_of_tree_prop : forall (V : Type) (P : key -> V -> Prop) (t : tree V),
+    ForallT P t ->
+    forall k v, (map_of_tree t) k = Some v -> P k v.
+Proof.
+  intros V P t.
+  induction t; simpl; intros.
+  - unfold empty, t_empty in H0. discriminate H0.
+  - unfold update, t_update in H0.
+    destruct H as [Pkv [Pt1 Pt2]].
+    bdestruct (k =? k0).
+    + injection H0 as H0. subst. apply Pkv.
+    + unfold union, update, t_update in H0.
+      destruct (map_of_tree t1 k0) eqn:E1; destruct (map_of_tree t2 k0) eqn:E2.
+      * discriminate H0.
+      * injection H0 as H0. subst.
+        apply IHt1; assumption.
+      * injection H0 as H0. subst.
+        apply IHt2; assumption.
+      * discriminate H0.
+Qed.
+
+
+Definition Abs' {V : Type} (t: tree V) : partial_map V :=
+  map_of_tree t.
+
+Lemma empty_relate' : forall (V : Type),
+    @Abs' V empty_tree = empty.
+Proof.
+  reflexivity.
+Qed.
+
+
+Theorem bound_relate' : forall (V : Type) (t : tree V) (k : key),
+    BST t ->
+    map_bound k (Abs' t) = bound k t.
+Proof.
+  intros V t.
+  induction t; simpl; intros.
+  - reflexivity.
+  - unfold map_bound.
+    inversion H; subst.
+    unfold Abs', update, t_update in *.
+    bdestruct (k =? k0).
+    + assert (G1: k >? k0 = false). { bdestruct(k >? k0); lia. }
+      assert (G2: k0 >? k = false). { bdestruct(k0 >? k); lia. }
+      rewrite G1, G2.
+      reflexivity.
+    + bdestruct (k >? k0); bdestruct (k0 >? k).
+      * exfalso. lia.
+      * unfold union.
+        destruct (map_of_tree t2 k0) eqn:E.
+        ** assert(G:= (map_of_tree_prop _ _ _ H5 _ _ E)).
+           simpl in G.
+           exfalso. lia.
+        ** specialize (IHt1 k0 H6).
+           unfold map_bound in IHt1.
+           destruct (map_of_tree t1 k0) eqn:E'.
+           *** assumption.
+           *** assumption.
+      * unfold union.
+        destruct (map_of_tree t1 k0) eqn:E.
+        ** assert(G:= (map_of_tree_prop _ _ _ H4 _ _ E)).
+           simpl in G.
+           exfalso. lia.
+        ** specialize (IHt2 k0 H7).
+           unfold map_bound in IHt2.
+           destruct (map_of_tree t2 k0) eqn:E'.
+           *** assumption.
+           *** assumption.
+      * exfalso. lia.
+Qed.
+
+Lemma lookup_relate' : forall (V : Type) (d : V) (t : tree V) (k : key),
+    BST t -> find d k (Abs' t) = lookup d k t.
+Proof.
+  intros V d t.
+  induction t; simpl; intros.
+  - reflexivity.
+  - unfold find.
+    inversion H; subst.
+    unfold Abs', update, t_update in *.
+    bdestruct (k =? k0).
+    + assert (G1: k >? k0 = false). { bdestruct(k >? k0); lia. }
+      assert (G2: k0 >? k = false). { bdestruct(k0 >? k); lia. }
+      rewrite G1, G2.
+      reflexivity.
+    + bdestruct (k >? k0); bdestruct (k0 >? k).
+      * exfalso. lia.
+      * unfold union.
+        destruct (map_of_tree t2 k0) eqn:E.
+        ** assert(G:= (map_of_tree_prop _ _ _ H5 _ _ E)).
+           simpl in G.
+           exfalso. lia.
+        ** specialize (IHt1 k0 H6).
+           unfold find in IHt1.
+           destruct (map_of_tree t1 k0) eqn:E'.
+           *** assumption.
+           *** assumption.
+      * unfold union.
+        destruct (map_of_tree t1 k0) eqn:E.
+        ** assert(G:= (map_of_tree_prop _ _ _ H4 _ _ E)).
+           simpl in G.
+           exfalso. lia.
+        ** specialize (IHt2 k0 H7).
+           unfold find in IHt2.
+           destruct (map_of_tree t2 k0) eqn:E'.
+           *** assumption.
+           *** assumption.
+      * exfalso. lia.
+Qed.
+
+
+Lemma insert_relate' : forall (V : Type) (k : key) (v : V) (t : tree V),
+   BST t -> Abs' (insert k v t) = update (Abs' t) k v.
+Proof. Admitted.
+
+Lemma map_of_list_app : forall (V : Type) (el1 el2: list (key * V)),
+   disjoint (map fst el1) (map fst el2) ->
+   map_of_list (el1 ++ el2) = union (map_of_list el1) (map_of_list el2).
+Proof. Admitted.
+
+Lemma elements_relate' : forall (V : Type) (t : tree V),
+  BST t ->
+  map_of_list (elements t) = Abs' t.
+Proof. Admitted.
