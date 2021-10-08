@@ -6,21 +6,9 @@ From Coq Require Export Arith.EqNat.
 From Coq Require Export Lia.
 From Coq Require Export Lists.List.
 Export ListNotations.
-From Coq Require Export Permutation.
-From Coq Require Import Logic.FunctionalExtensionality.
 From VFA Require Import Perm.
 From VFA Require Import Maps.
 From VFA Require Import Sort.
-
-
-From VFA Require Import Perm.
-From VFA Require Import Sort.
-
-Notation  "a >=? b" := (Nat.leb b a)
-                          (at level 70) : nat_scope.
-Notation  "a >? b"  := (Nat.ltb b a)
-                         (at level 70) : nat_scope.
-
 
 Definition key := nat.
 
@@ -749,10 +737,7 @@ Proof.
   reflexivity.
 Qed.
 
-
-
-
-Lemma tst: forall V P (t: list (key * V)) k',
+Lemma elem_not_match_list: forall V P (t: list (key * V)) k',
   Forall (fun '(k, v) => P k) t ->
   ~P k' ->
   map_of_list t k' = None.
@@ -771,6 +756,40 @@ Proof.
       assumption.
 Qed.
 
+Lemma elim_not_suitable_app_l: forall V P (l r: list (key * V)) k',
+  Forall (fun '(k, v) => P k) l ->
+  ~P k' ->
+  map_of_list (l ++ r) k' = map_of_list r k'.
+Proof.
+  intros V P l.
+  induction l; simpl; intros.
+  - reflexivity.
+  - destruct a.
+    unfold update, t_update.
+    inversion H; subst.
+    bdestruct (k =? k').
+    + subst. exfalso. apply H0. apply H3.
+    + apply IHl; auto.
+Qed.
+
+Lemma elim_not_suitable_app_r: forall V P (l r: list (key * V)) k',
+  Forall (fun '(k, v) => P k) r ->
+  ~P k' ->
+  map_of_list (l ++ r) k' = map_of_list l k'.
+Proof.
+  intros V P l.
+  induction l; simpl; intros.
+  - unfold empty, t_empty. simpl.
+    eapply elem_not_match_list.
+      apply H.
+      apply H0.
+  - destruct a.
+    unfold update, t_update.
+    bdestruct (k =? k').
+    + reflexivity.
+    + apply IHl; auto.
+Qed.
+
 
 Lemma forall_trans_pm: forall V P (l: list (key * V)),
   Forall (fun k : key => P k) (map fst l) -> Forall (fun '(k, _) => P k) l.
@@ -787,42 +806,80 @@ Proof.
 Qed.
 
 
-Lemma bound_relate_l : forall (V: Type) (l r: tree V) (k k': key) v,
-    BST (T l k v r) ->
-    k' < k ->
-    map_bound k' (Abs (T l k v r)) = bound k' l.
-Proof.
-  intros V l.
-  induction l; intros.
-  - simpl in *.
-    inversion H; subst.
-    unfold Abs. simpl.
-    assert (G: update (map_of_list (elements r)) k v k' = None). {
-      unfold update, t_update.
-      bdestruct (k =? k').
-      - lia.
-      - apply (tst _ (fun i => i > k)).
-        + apply forall_transform in H6.
-          apply forall_trans_pm in H6.
-          auto.
-        + intro Hcontra. lia.
-    }
-    unfold map_bound.
-    rewrite G.
-    reflexivity.
-  - simpl in *.
-    inversion H; subst.
-Admitted.
-
 Theorem bound_relate : forall (V: Type) (t: tree V) (k: key),
     BST t ->
     map_bound k (Abs t) = bound k t.
-Proof. Admitted.
+Proof.
+  intros V t.
+  induction t; simpl; intros.
+  - reflexivity.
+  - unfold Abs. simpl.
+    inversion H; subst.
+    unfold map_bound.
+    bdestruct (k >? k0).
+    + rewrite elim_not_suitable_app_r with (P := fun x => x >= k).
+      * apply IHt1. assumption.
+      * constructor.
+        ** lia.
+        ** apply forall_transform in H5.
+           apply forall_trans_pm.
+           apply Forall_impl with (Q := fun x => x >= k)in H5.
+           *** apply H5.
+           *** intros. lia.
+      * lia.
+    + rewrite elim_not_suitable_app_l with (P := fun x => x < k).
+      * bdestruct (k0 >? k).
+        ** simpl. unfold update, t_update.
+           bdestruct (k =? k0).
+            *** exfalso. lia.
+            *** apply IHt2. assumption.
+        ** simpl. unfold update, t_update.
+           bdestruct (k =? k0).
+            *** reflexivity.
+            *** exfalso. lia.
+      * apply forall_transform in H4.
+        apply forall_trans_pm.
+        apply H4.
+      * lia.
+Qed.
+
 
 Lemma lookup_relate : forall (V: Type) (t: tree V) (d: V) (k: key),
     BST t -> find d k (Abs t) = lookup d k t.
-Proof. Admitted.
+Proof.
+  intros V t.
+  induction t; simpl; intros.
+  - reflexivity.
+  - unfold Abs, find. simpl.
+    inversion H; subst.
+    bdestruct (k >? k0).
+    + rewrite elim_not_suitable_app_r with (P := fun x => x >= k).
+      * apply IHt1. assumption.
+      * constructor.
+        ** lia.
+        ** apply forall_transform in H5.
+           apply forall_trans_pm.
+           apply Forall_impl with (Q := fun x => x >= k)in H5.
+           *** apply H5.
+           *** intros. lia.
+      * lia.
+    + rewrite elim_not_suitable_app_l with (P := fun x => x < k).
+      * bdestruct (k0 >? k).
+        ** simpl. unfold update, t_update.
+           bdestruct (k =? k0).
+            *** exfalso. lia.
+            *** apply IHt2. assumption.
+        ** simpl. unfold update, t_update.
+           bdestruct (k =? k0).
+            *** reflexivity.
+            *** exfalso. lia.
+      * apply forall_transform in H4.
+        apply forall_trans_pm.
+        apply H4.
+      * lia.
+Qed.
 
+From Coq Require Import FunctionalExtensionality.
 
 Lemma insert_relate : forall (V: Type) (t: tree V) (k: key) (v: V),
   BST t -> Abs (insert k v t) = update (Abs t) k v.
@@ -833,8 +890,30 @@ Proof.
   rewrite kvs_insert_elements; auto.
   remember (elements t) as l.
   clear -l. (* clear everything not about l *)
-  (* Hint: proceed by induction on l. *)
-    (* FILL IN HERE *) Admitted.
+  induction l.
+  - reflexivity.
+  - simpl.
+    unfold update, t_update. simpl.
+    destruct a.
+    extensionality o.
+    bdestruct (k0 >? k).
+    + simpl. unfold update, t_update. simpl.
+      reflexivity.
+    + bdestruct (k >? k0).
+      * simpl. unfold update, t_update in *. simpl.
+        rewrite (IHl).
+        bdestruct (k0 =? o); bdestruct (k =? o).
+        ** exfalso. lia.
+        ** reflexivity.
+        ** reflexivity.
+        ** reflexivity.
+      * simpl. unfold update, t_update in *. simpl.
+        bdestruct (k0 =? o); bdestruct (k =? o).
+        ** reflexivity. 
+        ** exfalso. lia.
+        ** reflexivity.
+        ** reflexivity.
+Qed.
 
 Lemma elements_relate : forall (V: Type) (t: tree V),
   BST t ->
@@ -842,9 +921,3 @@ Lemma elements_relate : forall (V: Type) (t: tree V),
 Proof.
   unfold Abs. intros. reflexivity.
 Qed.
-
-
-
-
-
-
