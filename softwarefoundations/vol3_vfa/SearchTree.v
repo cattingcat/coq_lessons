@@ -1107,7 +1107,51 @@ Qed.
 
 Lemma insert_relate' : forall (V : Type) (k : key) (v : V) (t : tree V),
    BST t -> Abs' (insert k v t) = update (Abs' t) k v.
-Proof. Admitted.
+Proof.
+  intros V k v t.
+  induction t; simpl; intros.
+  - unfold union, empty, t_empty, update, t_update. simpl. reflexivity.
+  - inversion H; subst; clear H.
+    extensionality o.
+    specialize (IHt1 H6).
+    specialize (IHt2 H7).
+    unfold Abs' in *.
+    unfold union, empty, t_empty, update, t_update in *.
+    apply equal_f with o in IHt1, IHt2.
+    simpl in *.
+    bdestruct (k0 >? k); bdestruct (k >? k0).
+    + exfalso. lia.
+    + simpl. unfold union, empty, t_empty, update, t_update in *.
+      bdestruct (k0 =? o); subst.
+      * bdestruct (k =? o); try lia.
+        reflexivity.
+      * rewrite IHt1.
+        bdestruct (k =? o); try lia.
+        ** subst. 
+           destruct (map_of_tree t2 o) eqn:E.
+           *** assert (G := map_of_tree_prop _ _ _ H5 _ _ E).
+               simpl in G. exfalso. lia.
+           *** reflexivity.
+        ** reflexivity.
+    + simpl. unfold union, empty, t_empty, update, t_update in *.
+      bdestruct (k0 =? o); subst.
+      * bdestruct (k =? o); try lia.
+        reflexivity.
+      * rewrite IHt2.
+        bdestruct (k =? o); try lia.
+        ** subst. 
+           destruct (map_of_tree t1 o) eqn:E.
+           *** assert (G := map_of_tree_prop _ _ _ H4 _ _ E).
+               simpl in G. exfalso. lia.
+           *** reflexivity.
+        ** reflexivity.
+    + assert (k = k0). { lia. }
+      simpl. unfold union, empty, t_empty, update, t_update in *.
+      subst.
+      bdestruct (k0 =? o); subst.
+      * reflexivity.
+      * reflexivity.
+Qed.
 
 Lemma map_of_list_app : forall (V : Type) (el1 el2: list (key * V)),
    disjoint (map fst el1) (map fst el2) ->

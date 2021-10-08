@@ -46,3 +46,32 @@ Locate "exists".
 Definition even_nat := {x : nat | Nat.Even x}.
 
 Print even_nat.
+
+
+Module SigSandbox.
+  Inductive sig {A : Type} (P : A -> Prop) : Type :=
+  | exist (x : A) : P x -> sig P.
+
+  Notation "{ x : A | P }" := (sig A (fun x => P)).
+
+  Inductive ex {A : Type} (P : A -> Prop) : Prop :=
+  | ex_intro (x : A) : P x -> ex P.
+
+  Definition proj1_sig {A : Type} {P : A -> Prop} (e : sig P) : A :=
+    match e with
+    | exist _ x _ => x
+    end.
+
+  Definition proj2_sig {A : Type} {P : A -> Prop} (e : sig P) : P (proj1_sig e) :=
+    match e with
+    | exist _ _ p => p
+    end.
+
+  Fail Definition proj1_ex {A : Type} {P : A -> Prop} (e : ex P) : A :=
+    match e with
+    | ex_intro _ x _ => x
+    end.
+End SigSandbox.
+
+
+
