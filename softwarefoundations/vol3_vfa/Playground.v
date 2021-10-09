@@ -41,6 +41,30 @@ Print ex. (* Sigma type for Prop *)
 Print sigT. (* Sigma for Type *)
 Print sig.
 
+Definition foo11 : bool -> Type :=
+  fun b => match b with
+           | true => nat
+           | false => bool
+           end.
+
+Definition bar11 : forall (b: bool) (c: foo11 b), nat := fun _ _ => 11.
+
+Compute (bar11 false true).
+Fail Compute (bar11 false 111).
+
+Inductive Fin : nat -> Type :=
+| FinItem (i: nat) : forall n, i < n -> Fin n.
+
+Definition correctItem: Fin 2.
+Proof.
+  apply (FinItem 1).
+  lia.
+Defined.
+
+Definition idA : forall (A: Type), A -> A :=
+  fun (A: Type) (a: A) => a.
+
+
 Locate "exists".
 
 Definition even_nat := {x : nat | Nat.Even x}.
@@ -52,7 +76,7 @@ Module SigSandbox.
   Inductive sig {A : Type} (P : A -> Prop) : Type :=
   | exist (x : A) : P x -> sig P.
 
-  Notation "{ x : A | P }" := (sig A (fun x => P)).
+  Notation "{ x : A | P }" := (sig A (fun x => P x)).
 
   Inductive ex {A : Type} (P : A -> Prop) : Prop :=
   | ex_intro (x : A) : P x -> ex P.

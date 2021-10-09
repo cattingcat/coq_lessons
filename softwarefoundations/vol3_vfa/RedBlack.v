@@ -234,7 +234,7 @@ Section ValueType.
        | H: BST (T _ _ _ _ _) |- _ => inv H
        end;
        (try constructor; auto; try lia)).
-    (* all: t applies t to every subgoal. *)
+    (* all: t   applies t to every subgoal. *)
     all: try eapply ForallT_greater; try eapply ForallT_less; eauto; try lia.
   Qed.
 
@@ -302,8 +302,7 @@ Section ValueType.
   Qed.
 
   Theorem make_black_BST : forall t,
-      BST t <->
-      BST (make_black t).
+      BST t <-> BST (make_black t).
   Proof.
     intros. unfold make_black.
     split.
@@ -340,6 +339,142 @@ Section ValueType.
   Qed.
 
 
-(* Verification TODO *)
+(* Verification *)
+
+  Lemma lookup_empty : forall k, lookup k empty_tree = default.
+  Proof. auto. Qed.
+
+ Lemma balance_lookup: forall (c : color) (k k' : key) (v : V) (l r : tree),
+      BST l ->
+      BST r ->
+      ForallT (fun k' _ => Abs k' < Abs k) l ->
+      ForallT (fun k' _ => Abs k' > Abs k) r ->
+      lookup k' (balance c l k v r) =
+      if Abs k' <? Abs k
+      then lookup k' l
+      else if Abs k' >? Abs k
+           then lookup k' r
+           else v.
+  Proof.
+    intros. unfold balance.
+    repeat
+      (match goal with
+       | |- lookup k' (match ?c with Red => _ | Black => _ end) = _ => destruct c; simpl
+       | |- lookup k' (match ?s with E => _ | T _ _ _ _ _ => _ end) = _ => destruct s; simpl
+       | H: ForallT _ (T _ _ _ _ _) |- _ => destruct H as [? [? ?] ]
+       | H: BST (T _ _ _ _ _) |- _ => inv H
+       end).
+    all: try bdall; try (exfalso; lia).
+Qed.
+
+  Lemma lookup_ins_eq: forall (t : tree) (k : key) (v : V),
+      BST t ->
+      lookup k (ins k v t) = v.
+  Proof.
+    intros t.
+    induction t; simpl; intros.
+    - bdestruct (ltb k k).
+      + exfalso. lia.
+      + reflexivity.
+    - inv H.
+      bdall.
+      + rewrite balance_lookup.
+        * bdall.
+        * apply ins_BST. assumption.
+        * assumption.
+        * apply insP. assumption. lia.
+        * assumption.
+      + rewrite balance_lookup.
+        * bdall.
+        * assumption.
+        * apply ins_BST. assumption.
+        * assumption.
+        * apply insP. assumption. lia.
+  Qed.
+
+  Theorem lookup_ins_neq: forall (t : tree) (k k' : key) (v : V),
+      BST t ->
+      k <> k' ->
+      lookup k' (ins k v t) = lookup k' t.
+  Proof.
+    intros t.
+    induction t; simpl; intros.
+    - bdestruct (ltb k' k).
+      + reflexivity.
+      + bdestruct (ltb k k').
+        * reflexivity.
+        * exfalso. 
+          assert (G: Abs k = Abs k'). { lia. }
+          apply Abs_inj in G.
+          apply H0. apply G.
+    - inv H.
+      bdall; 
+        try (rewrite balance_lookup); 
+        try (bdall; lia); 
+        try assumption; 
+        try (apply ins_BST; assumption);
+        try (apply insP; assumption).
+      + apply insP. eapply ForallT_imp. apply H7.
+        * intros. simpl in *. lia.
+        * lia.
+      + apply insP. eapply ForallT_imp. apply H7.
+        * intros. simpl in *. lia.
+        * lia.
+      + apply insP. eapply ForallT_imp. apply H7.
+        * intros. simpl in *. lia.
+        * lia.
+      + exfalso.
+        assert (G: Abs k = Abs k'). { lia. }
+        assert (G': Abs k = Abs k0). { lia. }
+        exfalso. apply H0.
+        apply Abs_inj in G, G'.
+        rewrite G' in G.
+        assumption.
+  Qed.
+
+  Lemma elim_make_black_ins_eq: forall k v t,
+    lookup k (make_black (ins k v t)) = lookup k (ins k v t).
+  Proof.
+    intros.
+    destruct (ins k v t).
+    - simpl. reflexivity.
+    - simpl. bdall.
+  Qed.
+
+  Theorem lookup_insert_eq : forall (t : tree) (k : key) (v : V),
+      BST t ->
+      lookup k (insert k v t) = v.
+  Proof.
+    intros.
+    unfold insert. simpl in *.
+    rewrite elim_make_black_ins_eq.
+    apply lookup_ins_eq.
+    assumption.
+  Qed.
+
+  Lemma elim_make_black_ins_neq: forall k' k v t,
+    lookup k' (make_black (ins k v t)) = lookup k' (ins k v t).
+  Proof.
+    intros.
+    destruct (ins k v t).
+    - simpl. reflexivity.
+    - simpl. bdall.
+  Qed.
+
+  Theorem lookup_insert_neq: forall (t : tree) (k k' : key) (v : V),
+      BST t ->
+      k <> k' ->
+      lookup k' (insert k v t) = lookup k' t.
+  Proof.
+    intros.
+    unfold insert. simpl in *.
+    rewrite elim_make_black_ins_neq.
+    apply lookup_ins_neq.
+    all: assumption.
+  Qed.
+
+
+(* Efficiency TODO *)
+
 
 End ValueType.
