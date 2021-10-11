@@ -311,3 +311,195 @@ Eval compute in three_ten.
 Eval compute in map (fun i => lookup i three_ten) [3;1;4;1;5]%positive.
 
 (* Trie correctness TODO *)
+
+Lemma look_leaf: forall A (a:A) j, 
+  look a j Leaf = a.
+Proof.
+  intros.
+  induction j.
+  - simpl. reflexivity.
+  - simpl. reflexivity.
+  - simpl. reflexivity.
+Qed.
+
+Lemma look_ins_same: forall {A} a k (v:A) t, 
+  look a k (ins a k v t) = v.
+Proof.
+  intros A a k.
+  induction k; simpl; intros.
+  - destruct t.
+    + apply IHk.
+    + apply IHk.
+  - destruct t.
+    + apply IHk.
+    + apply IHk.
+  - destruct t.
+    + reflexivity.
+    + reflexivity.
+Qed.
+
+Lemma look_ins_other: forall {A} a j k (v:A) t,
+   j <> k -> look a j (ins a k v t) = look a j t.
+Proof.
+  intros A a j.
+  induction j; simpl; intros.
+  - destruct k.
+    + simpl.
+      destruct t.
+      * rewrite IHj.
+        apply look_leaf.
+        lia.
+      * apply IHj.
+        lia.
+    + simpl.
+      destruct t.
+      * apply look_leaf.
+      * reflexivity.
+    + simpl.
+      destruct t.
+      * apply look_leaf.
+      * reflexivity.
+  - destruct k.
+    + simpl.
+      destruct t.
+      * apply look_leaf.
+      * reflexivity.
+    + simpl.
+      destruct t.
+      * rewrite IHj.
+        apply look_leaf.
+        lia.
+      * apply IHj.
+        lia.
+    + simpl.
+      destruct t.
+      * apply look_leaf.
+      * reflexivity.
+  - destruct k.
+    + simpl.
+      destruct t.
+      * reflexivity.
+      * reflexivity.
+    + simpl.
+      destruct t.
+      * reflexivity.
+      * reflexivity.
+    + simpl.
+      destruct t.
+      * exfalso. apply H. lia.
+      * exfalso. apply H. lia.
+Qed.
+
+
+Definition nat2pos (n: nat) : positive := Pos.of_succ_nat n.
+Definition pos2nat (n: positive) : nat := pred (Pos.to_nat n).
+
+Lemma pos2nat2pos: forall p, nat2pos (pos2nat p) = p.
+Proof.
+  intro. unfold nat2pos, pos2nat.
+  rewrite <- (Pos2Nat.id p) at 2.
+  destruct (Pos.to_nat p) eqn:?.
+  pose proof (Pos2Nat.is_pos p). lia.
+  rewrite <- Pos.of_nat_succ.
+  reflexivity.
+Qed.
+
+Lemma nat2pos2nat: forall i, pos2nat (nat2pos i) = i.
+Proof.
+  intro. unfold nat2pos, pos2nat.
+  rewrite SuccNat2Pos.id_succ.
+  reflexivity.
+Qed.
+
+Lemma pos2nat_injective: forall p q, pos2nat p = pos2nat q -> p = q.
+Proof.
+  intros.
+  rewrite <- pos2nat2pos.
+  rewrite <- H.
+  symmetry.
+  apply pos2nat2pos.
+Qed.
+
+Lemma nat2pos_injective: forall i j, nat2pos i = nat2pos j -> i = j.
+Proof.
+  intros.
+  rewrite <- nat2pos2nat.
+  rewrite <- H.
+  symmetry.
+  apply nat2pos2nat.
+Qed.
+
+
+Definition is_trie {A: Type} (t: trie_table A) : Prop := True.
+
+Definition abstract {A: Type} (t: trie_table A) (n: nat) : A :=
+  lookup (nat2pos n) t.
+
+Definition Abs {A: Type} (t: trie_table A) (m: total_map A) :=
+  abstract t = m.
+
+
+Theorem empty_is_trie: forall {A} (default: A), is_trie (empty default).
+Proof.
+Admitted.
+
+Theorem insert_is_trie: forall {A} i x (t: trie_table A),
+   is_trie t -> is_trie (insert i x t).
+Proof.
+Admitted.
+
+
+Theorem empty_relate: forall {A} (default: A),
+    Abs (empty default) (t_empty default).
+Proof.
+  intros.
+  unfold Abs, abstract, t_empty.
+  extensionality o.
+  unfold lookup.
+  simpl.
+  apply look_leaf.
+Qed.
+
+Theorem lookup_relate: forall {A} i (t: trie_table A) m,
+    is_trie t -> Abs t m -> lookup i t = m (pos2nat i).
+Proof.
+  intros.
+  unfold Abs, abstract, t_empty in *.
+  rewrite <- H0.
+  rewrite pos2nat2pos.
+  reflexivity.
+Qed.
+
+Theorem insert_relate: forall {A} k (v: A) t cts,
+    is_trie t ->
+    Abs t cts ->
+    Abs (insert k v t) (t_update cts (pos2nat k) v).
+Proof.
+  intros.
+  unfold Abs, abstract, t_empty, t_update in *.
+  extensionality o.
+  unfold lookup. destruct t. simpl.
+  bdestruct (pos2nat k =? o).
+  - rewrite <- H1.
+    rewrite pos2nat2pos.
+    apply look_ins_same.
+  - rewrite <- H0.
+    unfold lookup. simpl.
+    apply look_ins_other.
+    intros Hcontra.
+    apply H1.
+    rewrite <- pos2nat2pos in Hcontra.
+    apply nat2pos_injective in Hcontra.
+    symmetry.
+    assumption.
+Qed. 
+
+Example Abs_three_ten:
+    Abs
+       (insert 3 true (insert 10 true (empty false)))
+       (t_update (t_update (t_empty false) (pos2nat 10) true) (pos2nat 3) true).
+Proof.
+  try (apply insert_relate; [hnf; auto | ]).
+  try (apply insert_relate; [hnf; auto | ]).
+  try (apply empty_relate).
+Qed.
