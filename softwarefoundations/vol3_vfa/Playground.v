@@ -97,5 +97,32 @@ Module SigSandbox.
     end.
 End SigSandbox.
 
+Lemma tst_tact: forall A B, A -> (A -> B) -> B.
+Proof.
+  intros.
+  pose (pB := X0 X).
+  pose proof (pB' := X0 X).
+  exact pB.
+Qed.
 
+Lemma tst_tact2: forall A B, A -> (A -> B) -> B.
+Proof.
+  intros.
+  refine (X0 _).
+  exact X.
+Qed.
+
+Lemma tst_tact3: forall A B, A \/ B -> (A -> B) -> B.
+Proof.
+  intros.
+  case H.
+  - intros. refine (H0 _). exact H1.
+  - intros. exact H1.
+Qed.
+
+Lemma tst_nat_comm: forall n m, n + m = m + n.
+Proof.
+  intros.
+  elim n.
+Admitted.
 
