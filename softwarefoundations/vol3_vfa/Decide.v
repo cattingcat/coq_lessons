@@ -193,12 +193,3 @@ Defined.
 
 Example in_4_pi: (if list_nat_in 4 [3;1;4;1;5;9;2;6] then true else false) = true.
 Proof.  simpl. reflexivity. Qed.
-
-
-
-
-
-
-
-
-
