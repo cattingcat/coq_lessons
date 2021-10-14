@@ -25,7 +25,7 @@ Definition string_of_nat (n : nat) : string :=
   string_of_nat_aux n n "".
 
 
-Class Show A : Type :=
+Class Show (A : Type) :=
   {
     show : A -> string
   }.
@@ -171,6 +171,12 @@ Instance natOrd : Ord nat :=
 Definition max {A: Type} `{Ord A} (x y : A) : A :=
   if le x y then y else x.
 
+Definition maxOrEq {A: Type} `{Ord A} (x y : A) : A :=
+  if le x y 
+    then 
+      if x =? y then x else y
+    else x.
+
 
 Instance pairOrd {A B: Type} `{Ord A} `{Ord B} : Ord (A * B) :=
   {
@@ -208,4 +214,100 @@ Definition showOne3 {A: Type} `{H : Show A} (a : A) : string :=
 
 
 
+ Record Point :=
+  MkPoint
+    {
+      px : nat;
+      py : nat
+    }.
 
+Check (MkPoint 2 4).
+Check {| px := 2; py := 4 |}.
+Check {| py := 4; px := 2 |}.
+
+Definition r : Point := {| px := 2; py := 4 |}.
+Compute (r.(px) + r.(py)).
+
+Record LabeledPoint (A : Type) :=
+  Build_LabeledPoint
+    {
+      lx : nat;
+      ly : nat;
+      label : A
+    }.
+
+Check {| lx:=2; ly:=4; label:="hello" |}.
+
+
+Print Show.
+Print showNat.
+Print HintDb typeclass_instances.
+
+Set Typeclasses Debug.
+Check (show 42).
+Check (show (true,42)).
+Unset Typeclasses Debug.
+
+
+
+From Coq Require Import Relations.Relation_Definitions.
+
+Class Reflexive (A : Type) (R : relation A) :=
+  {
+    reflexivity : forall x, R x x
+  }.
+
+Class Transitive (A : Type) (R : relation A) :=
+  {
+    transitivity : forall x y z, R x y -> R y z -> R x z
+  }.
+
+
+Lemma trans3 : forall {A R} `{Transitive A R} x y z w,
+    R x y -> R y z -> R z w -> R x w.
+Proof.
+  intros.
+  apply (transitivity x z w). apply (transitivity x y z).
+  assumption. assumption. assumption. Defined.
+
+Class PreOrder (A : Type) (R : relation A) :=
+  { PreOrder_Reflexive :> Reflexive A R ;
+    PreOrder_Transitive :> Transitive A R }.
+
+Lemma trans3_pre : forall {A R} `{PreOrder A R} x y z w,
+    R x y -> R y z -> R z w -> R x w.
+Proof. intros. eapply trans3; eassumption. Defined.
+
+Print PreOrder.
+
+
+
+Require Import ssreflect ssrbool.
+Print decidable.
+
+Class Dec (P : Prop) : Type :=
+  {
+    dec : decidable P
+  }.
+
+Class EqDec (A : Type) {H : Eq A} :=
+  {
+    eqb_eq : forall x y, x =? y = true <-> x = y
+  }.
+
+Instance EqDec__Dec {A} `{H : EqDec A} (x y : A) : Dec (x = y).
+Proof.
+  constructor.
+  unfold decidable.
+  destruct (x =? y) eqn:E.
+  - left. rewrite <- eqb_eq. assumption.
+  - right. intros C. rewrite <- eqb_eq in C. rewrite E in C. inversion C.
+Defined.
+
+Instance Dec_conj {P Q} {H : Dec P} {I : Dec Q} : Dec (P /\ Q).
+Proof.
+  constructor. unfold decidable.
+  destruct H as [D]; destruct D;
+    destruct I as [D]; destruct D; auto;
+      right; intro; destruct H; contradiction.
+Defined.
