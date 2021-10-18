@@ -74,7 +74,8 @@ Qed.
 
 Hint Resolve ltb_reflect leb_reflect eqb_reflect : bdestruct.
 Ltac bdestruct X :=
-  let H := fresh in let e := fresh "e" in
+  let H := fresh     in
+  let e := fresh "e" in
    evar (e: Prop);
    assert (H: reflect e X); subst e;
     [eauto with bdestruct

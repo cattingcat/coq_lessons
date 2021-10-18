@@ -1,5 +1,5 @@
 
-(* Section ExtensionalEqualityAndComposition. *)
+Section ExtensionalEqualityAndComposition.
 
 Variables A B C D : Type.
 

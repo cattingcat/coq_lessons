@@ -126,3 +126,21 @@ Proof.
   elim n.
 Admitted.
 
+
+
+(*
+Print list_ind.
+
+Fixpoint my_list_ind (A: Type) (P: list A -> Prop): 
+  P [] -> 
+  (forall a, P [a]) -> 
+  (forall a b l, P l -> P (a :: l ++ [b])) -> 
+  (forall l, P l) :=
+  fun Pnil Pone Pt l => 
+    match l with
+    | [] => Pnil
+    | [a] => Pone a
+    | a :: b :: nil => Pt a b nil Pnil
+    | a :: b :: l => _
+    end.
+*)

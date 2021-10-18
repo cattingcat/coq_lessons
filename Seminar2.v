@@ -87,6 +87,7 @@ Definition not_exists_forall_not :
 
 Definition exists_forall_not_ :
 (exists x, A -> P x) -> (forall x, ~P x) -> ~A.
+Proof. Admitted.
 
 (** Extra exercise (feel free to skip): the dual Frobenius rule *)
 Definition LEM :=
@@ -171,7 +172,7 @@ Check frob PP (fun _ => False) PP.
 
 (* Section ExtensionalEqualityAndComposition. *)
 
-From mathcomp Require Import ssreflect ssrfun ssrbool eqtype.
+From mathcomp Require Import ssreflect ssrfun ssrbool ssrnat eqtype.
 
 Variables A B C D : Type.
 
@@ -190,20 +191,147 @@ Definition compA (f : A -> B) (g : B -> C) (h : C -> D) :
     Let us prove a number of facts about [=1]. *)
 
 
+Search "=1".
+Print frefl.
+Print erefl.
+Print eq_trans.
+
+Search Logic.eq_refl.
+Print Logic.eq_refl.
+
+
+(*
+
+            Parameter             Index
+                |                   |
+  Inductive eq (A : Type) (x : A) : A -> Prop :=  
+    eq_refl : eq x x
+                 | |
+             param ind
+
+  match someEq in (_ = gx)
+                   |
+                impossible to match 
+      parameter, but possible to match index
+
+  Index changable durint unification
+
+*)
+
+
 (** Exercise: Reflexivity *)
 Definition eqext_refl :
   forall (f : A -> B), f =1 f
-:=
+:= fun f => frefl f.
 
 (** Exercise: Symmetry *)
 Definition eqext_sym :
   forall (f g : A -> B), f =1 g -> g =1 f
-:=
+:= fun f g efg x => match (efg x) in (_ = gx) return (gx = f x) with
+                    | erefl => erefl
+                    end.
+
+
+Definition eqext_trans :
+  forall (f g h : A -> B), f =1 g -> g =1 h -> f =1 h.
+Proof. intros. intro x. rewrite (H x). apply (H0 x). Qed.
+
+Print eqext_trans.
 
 (** Exercise: Transitivity *)
-Definition eqext_trans :
+Definition eqext_trans2 :
   forall (f g h : A -> B), f =1 g -> g =1 h -> f =1 h
+:= fun f g h efg egh x =>
+    (* Imagine that after PM all "right = side" replaced with "left = side" *)
+    (* after unification "hx" will be replaced with "g x" *)
+    match (egh x) in (_ = hx) return (f x = hx) with
+    | erefl => (efg x)
+    end.
+
+
+Definition succ_inj (n m: nat) : n.+1 = m.+1 -> n = m :=
+                        (* sm - will be replaced with (S n) during unification *)
+                                              (* Also (S n).-1 willbe calculated *)
+  fun Sn_Sm => match Sn_Sm in (_ = sm) return (n = sm.-1) with
+               | erefl => erefl
+               end.
+
+Definition or_introl_inj (A B: Prop) (p1 p2: A) :
+  or_introl p1 = or_introl p2 :> (A \/ B) -> p1 = p2
 :=
+  fun eq =>
+    match eq 
+      in (_ = oil2)
+      return (p1 = if oil2 is or_introl p2' then p2' else p2)
+    with
+    | erefl => erefl p1
+    end.
+
+
+
+(* return clause will be calculated twice. 1 - before PM, 2 - after PM *)
+Definition discr_bool: false = true -> False 
+:=
+  fun (eq: false = true) =>
+    match eq
+      in (_      = tr)
+      return   (if tr then False else True)   (* large elimination, not possible for Prop *)
+                (*  ^  tr will be true BEFORE pattern mach *)
+    with
+    | erefl => I (* after matching, return clause will be True*)
+    end.
+
+Definition discr_bool_r: true = false -> False 
+:=
+  fun (eq: true = false) =>
+    match eq
+      in (_      = tr)
+      return   (if tr then True else False)
+    with
+    | erefl => I
+    end.
+
+Locate "<>".
+
+
+Fail Definition neq_sym A (x y: A) :
+  x <> y -> y <> x
+:=
+  fun (neq_xy: x <> y) (eq_yx: y = x) =>
+    match eq_yx 
+      in (_ = a)
+      return False
+    with
+    | erefl => neq_xy _
+    end.
+
+
+Definition unification_test: 
+  (cons 1 (cons 2 (cons 3 nil))) = app (cons 1 (cons 2 nil)) (cons 3 nil)
+:= erefl.
+
+Definition neq_sym A (x y: A) :
+  x <> y -> y <> x
+:=
+  fun (neq_xy: x <> y) (eq_yx: y = x) =>
+    (match eq_yx 
+      in (_ = a)
+      return (a <> y -> False) (* before pattern match a := x, afler a := y *)
+    with
+    | erefl => fun (neq_xy': y <> y) => neq_xy' (erefl y) (* "a" become "y = y" after patterm matching *)
+    end) neq_xy.
+
+
+Definition neq_sym A (x y: A) :
+  x <> y -> y <> x
+:=
+  fun (neq_xy: x <> y) (eq_yx: y = x) =>
+    match eq_yx 
+      in (_ = a)
+      return False
+    with
+    | erefl => _
+    end.
 
 (** Exercise: left congruence *)
 Definition eq_compl :

@@ -62,10 +62,30 @@ End iterators.
 Check foldr.
 
 
+Section tst.
+  Variables (T A : Type).
+  Variable (t: nat -> Type).
+  Variable qwe : forall n, t n.
+  Definition tstFunc (a: nat) : nat -> t a := fun _ => qwe a.
+End tst.
+About tstFunc.
+
+(*Notation "[ 'seq' E | i <- s ]" := (map (fun i => E) s).*)
+Compute [seq i.+1 | i <- [:: 2; 3]].
+
+Eval simpl in predn (addn 0.+1 7).
 
 
+About addnA.
+About cancel.
+Print rel.
+Print pred.
+Print commutative.
 
 
+Inductive my_conj (A B C D: Prop) :=
+  | mconj of A & B & C & D.
+Print my_conj.
 
 
 
