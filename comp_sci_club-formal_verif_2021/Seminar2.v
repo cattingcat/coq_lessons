@@ -322,16 +322,61 @@ Definition neq_sym A (x y: A) :
     end) neq_xy.
 
 
-Definition neq_sym A (x y: A) :
-  x <> y -> y <> x
+Definition congr (A B: Type) (f: A -> B) x y: 
+  x = y -> f x = f y
 :=
-  fun (neq_xy: x <> y) (eq_yx: y = x) =>
-    match eq_yx 
+  fun eq_xy =>
+    match eq_xy
       in (_ = a)
-      return False
+      return (f x = f a)
     with
-    | erefl => _
+    | erefl => erefl (f x)
     end.
+
+Definition addn0 : forall n, n + 0 = n
+:=
+  fix rec (n: nat) : n + 0 = n :=
+    match n as a return (a + 0 = a) with (* a  will be replaced with constructors  0 and (S n') *)
+    | 0 => erefl      (* 0 + 0 = 0 *)
+                 (* (S n') + 0 = S n' *) 
+    | S n' => congr nat nat S (n' + 0) n' (rec n')
+    end.
+
+
+Definition Pred (n: nat) : Type :=
+  if n is S n' then nat else unit.
+
+Definition predn_dep (n: nat): Pred n :=
+  if n is S n' then n' else tt.
+
+Compute Pred 0.
+Compute predn_dep 0.
+
+Compute Pred 42.
+Compute predn_dep 42.
+
+Definition pred (n: {x: nat | ~~ (x == 0)}) : nat :=
+  match n with 
+  | exist x pneq0 => predn x
+  end.
+
+Definition pred2 (n: {x: nat | x <> 0}) : nat :=
+  match n with 
+  | exist x pneq0 => predn x
+  end.
+
+
+Definition pred3 (n: {x: nat | x <> 0}) : nat :=
+  match n with 
+  | exist x pneq0 =>(match x 
+                      as a 
+                      return ((a = 0 -> False) -> nat)
+                     with
+                     | 0    => fun contra => match (contra erefl) with end
+                     | S x' => fun _ => x'
+                     end) pneq0
+  end.
+
 
 (** Exercise: left congruence *)
 Definition eq_compl :
