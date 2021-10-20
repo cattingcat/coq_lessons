@@ -53,5 +53,13 @@ Compute myFunc (1, 2) (3, 4).
 
 Print Monoid.law.
 
+(* Canonical structures for the working Coq user - Mahboubi Tassi *)
+(* Coq wiki: Typeclasses and canonical structures *)
+(* SF: Typeclasses *)
+
+(* Generic Proof Tools and Finite group theory - Garillot *)
+
+(* hierarchy-builder *)
+
 
 End Lesson8.
