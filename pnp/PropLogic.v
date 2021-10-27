@@ -129,14 +129,3 @@ Polymorphic Definition Rp (A: Type) (x: A) : A := x.
 Arguments Rp [A].
 
 Check Rp Rp.
-
-
-
-
-
-
-
-
-
-
-

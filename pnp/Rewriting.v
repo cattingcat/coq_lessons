@@ -246,6 +246,3 @@ case leqP => H.
   by rewrite addnC.
 by rewrite addnC.
 Qed.
-
-
-

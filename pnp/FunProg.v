@@ -50,4 +50,3 @@ case.
 Restart.
 apply: False_ind.
 Qed.
-
