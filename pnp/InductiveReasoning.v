@@ -103,3 +103,143 @@ rewrite mulSn.
 apply (b_sum _ n (m' * n)) => //.
 by apply IHm'.
 Qed.
+
+
+Inductive gorgeous (n: nat) : Prop :=
+| g_0 of n = 0
+| g_plus3 m of gorgeous m & n = m + 3
+| g_plus5 m of gorgeous m & n = m + 5.
+
+Lemma sum_gorgeous (n m: nat) : gorgeous n -> gorgeous m -> gorgeous (n + m).
+Proof.
+elim => [_ -> | n' m' gm' IH -> /IH gs | n' m' gm' IH -> /IH gs ] //.
+- rewrite addnC addnA (addnC m m').
+  by apply (g_plus3 _ (m' + m)).
+- rewrite addnC addnA (addnC m m').
+  by apply (g_plus5 _ (m' + m)).
+Qed.
+
+Lemma beautiful_gorgeous (n: nat) : beautiful n -> gorgeous n.
+Proof.
+elim => [_ -> | _ -> | _ -> | h n' m' bn' gn' bm' gm' ->].
+- by apply g_0.
+- apply (g_plus3 _ 0). apply g_0 => //.
+  done.
+- apply (g_plus5 _ 0). apply g_0 => //.
+  done.
+by apply sum_gorgeous.
+Qed.
+
+Lemma gorgeous_beautiful (n: nat) : gorgeous n -> beautiful n.
+Proof.
+elim => [_ -> | n' m gm bm -> | n' m gm bm ->] //.
+- by apply b_0.
+- apply (b_sum _ m 3) => //.
+  by apply b_3.
+- apply (b_sum _ m 5) => //.
+  by apply b_5.
+Qed.
+
+Search or3.
+Print or3.
+Locate or3.
+Search (_ * _.+1).
+Search (?a + _ = ?a + _ -> _ = _).
+Search ((_ <= _)).
+Search (maxn).
+
+
+
+About eqP.
+
+Search (_ || false).
+About leq_eqVlt.
+
+Lemma repr3 n : n >= 8 ->
+  exists k, [\/ n = 3 * k + 8, n = 3 * k + 9 | n = 3 * k + 10].
+Proof.
+elim: n => [ contra | n IH le7] //.
+case g: (7 < n).
+- case: (IH g) => x [h8 | h9 | h10].
+  + exists x. constructor 2. by rewrite h8 -addnS.
+  + exists x. constructor 3. by rewrite h9 -addnS.
+  + exists x.+1. constructor 1. by rewrite h10 mulnSr -addnS -addnA.
+rewrite -ltnS in g.
+rewrite leq_eqVlt g Bool.orb_false_r eqSS in le7.
+exists 0. constructor 1.
+case: eqP le7 => H _ //.
+by rewrite H.
+Qed.
+
+Lemma gorg3 n : gorgeous (3 * n).
+Proof.
+elim: n => [| n IHn ] //.
+  by constructor.
+rewrite mulnSr.
+by apply (g_plus3 _ (3 * n)).
+Qed.
+
+Lemma gorg_criteria n : n >= 8 -> gorgeous n.
+Proof.
+move => /repr3 [k [-> | h2 | h3]].
+- apply (g_plus3 _ (3 * k + 5)) => //.
+  apply (g_plus5 _ (3 * k)) => //.
+  apply gorg3.
+  by rewrite -addnA.
+- have g: 9 = 3 * 3. 
+    by done.
+  rewrite h2 g -mulnDr.
+  by apply gorg3.
+- have g: 10 = 5 + 5.
+    by done.
+  rewrite h3 g addnA.
+  apply (g_plus5 _ (3 * k + 5)) => //.
+  apply (g_plus5 _ (3 * k)) => //.
+  by apply gorg3.
+Qed.
+
+Lemma gorg_refl' n: n >= 8 -> reflect (gorgeous n) true.
+Proof.
+move => /gorg_criteria H.
+by constructor.
+Qed.
+
+
+Inductive tree : Set :=
+| leaf
+| node of tree & tree.
+
+Fixpoint height t :=
+  if t is node t1 t2 then (maxn (height t1) (height t2)).+1 else 0.
+
+Lemma height_node t1 t2: 
+  height (node t1 t2) = (maxn (height t1) (height t2)).+1.
+Proof. done. Qed.
+
+Fixpoint leaves t :=
+  if t is node t1 t2 then leaves t1 + leaves t2 else 1.
+
+Lemma leaves_node t1 t2: 
+  leaves (node t1 t2) = leaves t1 + leaves t2 .
+Proof. done. Qed.
+
+Locate "[ \/ _ , _ | _ ]".
+
+Fixpoint complete t :=
+  if t is node t1 t2 then complete t1 && complete t2 && (height t1 == height t2)
+  else true.
+
+Lemma complete_node t1 t2: 
+  complete (node t1 t2) = complete t1 && complete t2 && (height t1 == height t2).
+Proof. done. Qed.
+
+
+Theorem complete_leaves_height t : complete t -> leaves t = 2 ^ height t.
+Proof.
+elim: t => [|t IHt t' IHt'] //.
+rewrite complete_node => /andP [/andP H2].
+move: H2 => [/IHt lt /IHt' lt'] Eh.
+rewrite leaves_node height_node.
+case: eqP Eh => // Eh.
+by rewrite Eh maxnn lt lt' Eh expnS addnn mul2n => _.
+Qed.
