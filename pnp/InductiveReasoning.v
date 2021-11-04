@@ -243,3 +243,24 @@ rewrite leaves_node height_node.
 case: eqP Eh => // Eh.
 by rewrite Eh maxnn lt lt' Eh expnS addnn mul2n => _.
 Qed.
+
+Fixpoint has_repeats {A: eqType} (xs : seq A) :=
+  if xs is x :: xs' then (x \in xs') || has_repeats xs' else false.
+
+Theorem dirichlet {A: eqType} (xs1 xs2: seq A) :
+  size xs2 < size xs1 -> {subset xs1 <= xs2} -> has_repeats xs1.
+Proof.
+elim: xs1 xs2 => [|x xs1 IH] xs2 //= H1 H2.
+case H3: (x \in xs1) => //=.
+pose xs2' := filter (predC (pred1 x)) xs2. (* pred1 - eq predicate, predC - negation of predicate *)
+apply: (IH xs2'); last first.
+About mem_filter.
+- move => y H4. move: (H2 y). rewrite inE H4 orbT mem_filter /=.
+  by move => -> //; case: eqP H3 H4 => // -> ->.
+rewrite ltnS in H1; apply: leq_trans H1.
+rewrite -(count_predC (pred1 x) xs2).
+rewrite -addn1 addnC.
+rewrite /xs2' size_filter leq_add2r -has_count.
+by apply/hasP; exists x => //=; apply: H2; rewrite inE eq_refl.
+Qed.
+

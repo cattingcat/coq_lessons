@@ -4,6 +4,7 @@
     nativeBuildInputs = [ 
 	pkgs.coq
 	pkgs.coqPackages.mathcomp
+	pkgs.coqPackages.HTT
 	pkgs.coqPackages.QuickChick ];
 }
 
