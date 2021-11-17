@@ -1,0 +1,8 @@
+-Q . favssr
+-arg -w -arg -notation-overridden
+-arg -w -arg -redundant-canonical-projection
+
+src/prelude.v
+src/basics.v
+src/sorting.v
+src/selection.v
