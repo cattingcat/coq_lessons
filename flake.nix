@@ -11,20 +11,23 @@
       forAllSystems = f: nixpkgs.lib.genAttrs supportedSystems (system: f system);
       nixpkgsFor = forAllSystems (system: import nixpkgs {
         inherit system;
-        overlays = [ self.overlay ];
       });
     in
     {
       packages = forAllSystems (system: {
-         coq_lessons = nixpkgsFor.${system}.coq_lessons;
+        coq_lessons = derivation { 
+            name = "coq_lessons"; 
+            builder = "${nixpkgsFor.${system}.coq}/bin/coqc -v"; 
+            inherit system;
+        };
       });
-      defaultPackage = forAllSystems (system: self.packages.${system}.coq_lessons);
+      # defaultPackage = forAllSystems (system: self.packages.${system}.coq_lessons);
       
       # devShells.default = forAllSystems (system: nixpkgs.mkShell {
       #   nativeBuildInputs = [ 
-      #     pkgs.coq
-      #     pkgs.coqPackages.mathcomp
-      #     pkgs.coqPackages.QuickChick 
+      #     nixpkgs.coq
+      #     nixpkgs.coqPackages.mathcomp
+      #     nixpkgs.coqPackages.QuickChick 
       #   ];
       # });
     };
