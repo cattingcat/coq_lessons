@@ -17,18 +17,21 @@
       packages = forAllSystems (system: {
         coq_lessons = derivation { 
             name = "coq_lessons"; 
-            builder = "${nixpkgsFor.${system}.coq}/bin/coqc -v"; 
+            builder = ''
+              ${nixpkgsFor.${system}.coq}/bin/coqc -v
+            ''; 
             inherit system;
         };
       });
-      # defaultPackage = forAllSystems (system: self.packages.${system}.coq_lessons);
+
+      defaultPackage = forAllSystems (system: self.packages.${system}.coq_lessons);
       
-      # devShells.default = forAllSystems (system: nixpkgs.mkShell {
-      #   nativeBuildInputs = [ 
-      #     nixpkgs.coq
-      #     nixpkgs.coqPackages.mathcomp
-      #     nixpkgs.coqPackages.QuickChick 
-      #   ];
-      # });
+      devShells.default = forAllSystems (system: nixpkgs.mkShell {
+        nativeBuildInputs = [ 
+          nixpkgsFor.${system}.coq
+          nixpkgsFor.${system}.coqPackages.mathcomp
+          nixpkgsFor.${system}.coqPackages.QuickChick 
+        ];
+      });
     };
 }
