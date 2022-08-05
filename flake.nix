@@ -15,10 +15,12 @@
     in
     {
       packages = forAllSystems (system: {
-        coq_lessons = derivation { 
-            name = "coq_lessons"; 
-            builder = ''
+        coq_lessons = nixpkgsFor.${system}.stdenv.mkDerivation { 
+            pname = "coq_lessons"; 
+            version = "dev";
+            buildCommand = ''
               ${nixpkgsFor.${system}.coq}/bin/coqc -v
+              touch $out
             ''; 
             inherit system;
         };
@@ -26,12 +28,15 @@
 
       defaultPackage = forAllSystems (system: self.packages.${system}.coq_lessons);
       
-      devShells.default = forAllSystems (system: nixpkgs.mkShell {
-        nativeBuildInputs = [ 
-          nixpkgsFor.${system}.coq
-          nixpkgsFor.${system}.coqPackages.mathcomp
-          nixpkgsFor.${system}.coqPackages.QuickChick 
+      devShell = forAllSystems (system: nixpkgsFor.${system}.mkShell {
+        buildInputs = with nixpkgsFor.${system}; [ 
+          coq
+          coqPackages.mathcomp
+          coqPackages.QuickChick 
         ];
+        shellHook = ''
+          export PS1='\e[1;34mdev > \e[0m'
+        '';
       });
     };
 }
