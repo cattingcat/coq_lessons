@@ -119,3 +119,120 @@ Proof.
   rewrite addition_comm plus_zero minus_0 //.
   rewrite addition_comm plus_sx subSS addition_comm //.
 Qed.
+
+(* Ex 1.5.1 *)
+Definition D x y := (x - y) + (y - x).
+
+Lemma Dsymm: forall x y, D x y = D y x.
+Proof.
+  elim => [y | y IH x'].
+  - unfold D.
+    rewrite minus_0 sub0n addition_comm //.
+  unfold D in *.
+  case x'.
+  - rewrite minus_0 sub0n addition_comm //.
+  move => k.
+  by rewrite subSS subSS IH.
+Qed.
+
+
+(* Ex 1.5.2 *)
+Fixpoint M x y := 
+  match x, y with
+  | S x', S y' => S(M x' y')
+  | S _, _ => x
+  | _ , S _ => y
+  | _, _ => x
+  end.
+
+Lemma mSS: forall x y, M (S x) (S y) = S (M x y).
+Proof.
+  by move => x y.
+Qed.
+
+Lemma mXX: forall x, M x x = x.
+Proof.
+  elim => [//| n' IH].
+  by rewrite mSS IH.
+Qed.
+
+Lemma mX0: forall x, M x 0 = x.
+Proof.
+  by case.
+Qed.
+
+Lemma M_comm: forall x y, M x y = M y x.
+Proof.
+  elim => [y| n IH y].
+    case y.
+      done.
+    by move => n.
+  case y.
+    done.
+  move => n'.
+  by rewrite mSS mSS IH.
+Qed.
+
+Lemma M_dom: forall x y, M (x + y) y = x + y.
+Proof.
+  move => x y.
+  elim: y x => [x| y' IH x].
+    by rewrite addn0 mX0.
+  by rewrite addnS mSS IH.
+Qed.
+  
+(* Ex 1.5.3 *)
+Fixpoint add_symm (x: nat) (y: nat) :=
+  match x, y with 
+  | 0, 0 => 0
+  | 0, S y' => S y'
+  | S x', 0 => S x'
+  | S x', S y' => S (S (add_symm x' y'))
+  end.
+
+Lemma addSymS0: forall x, add_symm (S x) 0 = S x.
+Proof. by done. Qed.
+
+Lemma addSymSS: forall x y, add_symm (S x) (S y) = S (S (add_symm x y)).
+Proof. by done. Qed.
+
+Lemma add_symm_comm: forall x y, add_symm x y = add_symm y x.
+Proof.
+  elim => [y| x IH y].
+    by case y.
+  case y.
+    by done.
+  move => y'.
+  by rewrite addSymSS addSymSS IH.
+Qed.
+
+Lemma add_symm_0n: forall x, add_symm 0 x = x.
+Proof.
+  by case.
+Qed.
+
+Lemma add_symm_Sn: forall x y, add_symm (S x) y = S (add_symm y x).
+Proof.
+  move => x y.
+  elim: y x => [x| n IH ].
+    rewrite addSymS0.
+    by case x.
+  move => x.
+  rewrite addSymSS.
+  case: x.
+    by rewrite add_symm_0n.
+  move => n'.
+  by rewrite IH addSymSS.
+Qed.
+
+Lemma add_symm_add_equiv: forall x y, add_symm x y = x + y.
+Proof.
+  elim => [y|x IH y'].
+    by rewrite add_symm_0n.
+  case y' => [|y''].
+    by rewrite addSymS0 addn0.
+  by rewrite addSymSS IH addSn addnS.
+Qed.
+
+
+(* Ex 1.6 *)
