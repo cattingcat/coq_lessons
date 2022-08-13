@@ -236,3 +236,180 @@ Qed.
 
 
 (* Ex 1.6 *)
+Fixpoint is_even (n: nat): bool :=
+  match n with 
+  | 0 => true
+  | S 0 => false
+  | S (S n') => is_even n'
+  end.
+
+Lemma is_even_SS: forall n, is_even (S (S n)) = is_even n.
+Proof. by done. Qed.
+
+Fixpoint is_even' (n: nat): bool :=
+  match n with 
+  | 0 => true
+  | S n' => negb (is_even' n')
+  end.
+
+Lemma double_even: forall n, is_even (n * 2).
+Proof.
+  elim => [|n' IH].
+    by done.
+  by rewrite mulnC mulnS addSn addSn add0n mulnC is_even_SS IH.
+Qed.
+
+
+
+Fixpoint fib (n: nat): nat :=
+  match n with
+  | 0 => 0
+  | S n' => 
+    match n' with 
+    | 0 => S 0
+    | S n'' => fib n'' + fib n'
+    end
+  end.
+
+Fixpoint fib'_helper (n: nat) (b: bool): nat :=
+  match n, b with
+  | 0, false => 0
+  | 0, true => 1
+  | S n', false => fib'_helper n' true
+  | S n', true => fib'_helper n' false + fib'_helper n' true
+  end.
+
+Definition fib' (n: nat): nat := fib'_helper n false.
+
+Lemma unfold_fib'Sn: forall n, fib' (S n) = fib'_helper n true.
+Proof. by []. Qed.
+
+Compute (fib' 10).
+Compute (fib 10).
+
+Lemma fib_equiv': forall n, fib n = fib' n.
+Proof.
+  elim => [| n' IH].
+    by done.
+  case: n' IH => [| n IH].
+    by done.
+  rewrite /(fib n.+2) -/(fib n) -/(fib (n.+1)).
+  rewrite /(fib' n.+2) /(fib'_helper _ _) -/(fib'_helper n false) -/(fib'_helper n.+1 false).
+  rewrite -/(fib' _) -/(fib' _) IH.
+  have: forall k, fib n = fib' n -> fib n + k = fib' n + k.
+    move => k H.
+    apply/eqnP.
+    rewrite eqnE. eqn_add2r.
+    apply /eqnP.
+    by apply H.
+  move => G.
+  apply G => {G}.
+  case: n IH => [| n IH].
+  by done.
+Admitted.
+
+Fixpoint nat_ind2 P (p0: P 0) (p1: P 1) (f: forall n, P n -> P n.+2) n: P n.
+Proof. 
+  case: n.
+    apply p0.
+  case.
+    apply p1.
+  move => n.
+  apply f.
+  apply (nat_ind2 P p0 p1 f).
+Defined.
+
+
+Lemma fib_equiv'': forall n, fib n = fib' n.
+Proof.
+  apply nat_ind2.
+    done.
+    done.
+  move => n IH.
+  rewrite /(fib n.+2) -/(fib n) -/(fib (n.+1)).
+  rewrite /(fib' n.+2) /(fib'_helper n.+2 false).
+  rewrite -/(fib'_helper n false) -/(fib' n).
+  rewrite -/(fib'_helper n true) -unfold_fib'Sn IH.
+Admitted.
+
+(* Lemma fib_equiv: forall n, fib n = fib' n.
+Proof.
+  elim => [//|].
+  move => n.
+  rewrite /(fib _) /(fib _) => IH.
+  rewrite IH.
+  move : IH.
+  rewrite /(fib' _) /(fib'_helper _) => IH. *)
+
+Definition fib_f (n: nat) (n0: nat) (n1: nat) (nf: nat -> nat): nat :=
+  match n with
+  | 0 => n0
+  | S n' => 
+    match n' with 
+    | 0 => n1
+    | S n'' => nf n''
+    end
+  end.
+
+Fixpoint fib'_f (n: nat) (b: bool) (n0: nat) (n1: nat) (nf: nat -> nat): nat :=
+  match n, b with
+  | 0, false => n0
+  | 0, true => n1
+  | S n', false => fib'_f n' true n0 n1 nf
+  | S n', true => nf n'
+  end.
+
+Lemma fib_core_equiv: forall n n0 n1 nf nf', 
+  (forall k, nf k = nf' k) -> fib_f n n0 n1 nf = fib'_f n false n0 n1 nf'.
+Proof.
+  case => [//| n n0 n1 nf nf' H].
+  rewrite /(fib_f) /(fib'_f).
+  case: n => [// | n].
+  by rewrite H.
+Qed.
+
+Section tst.
+  Variables P Q : bool -> Prop.
+  Hypothesis P2Q : forall a b, P (a || b) -> Q a.
+
+  Goal forall a, P (a || a) -> True.
+    move=> a HPa. move: {HPa}(@P2Q _ _ HPa) => HQa. 
+  Admitted.
+  Goal forall a, P (a || a) -> True.
+    move=> a HPa. move/P2Q: HPa => HQa.
+  Admitted.
+  Goal forall a, P (a || a) -> True.
+    move=> a. move/P2Q=> HQa.
+  Admitted.
+End tst.
+
+Section tst2.
+  Variables P Q: bool -> Prop.
+  Hypothesis PQequiv : forall a b, P (a || b) <-> Q a.
+  
+  Goal forall a b, P (a || b) -> True.
+    move=> a b; move/PQequiv=> HQab.
+  Admitted.
+  Goal forall a, P ((~~ a) || a).
+    move=> a. apply/PQequiv.
+  Admitted.
+End tst2.
+
+
+Lemma fib_equiv: forall n, fib n = fib' n.
+Proof.
+  elim => [//| n IH].
+  (* rewrite {1}[n]/(0 + n). Rewrite firs occurence of n to 0 + n *)
+  rewrite /(fib) -/(fib_f ).
+  Print ltnP.
+  move: addSn.
+Admitted.
+
+(* 1.6.3 *)
+Fixpoint h' (n: nat) (b: bool): nat :=
+  match n, b with
+  | 0, false => 0
+  | 0, true => 1
+  | S n', false => h' n' true
+  | S n', true => S (h' n' false)
+  end.
