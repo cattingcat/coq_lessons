@@ -413,3 +413,66 @@ Fixpoint h' (n: nat) (b: bool): nat :=
   | S n', false => h' n' true
   | S n', true => S (h' n' false)
   end.
+
+(* 1.9 *)
+Fixpoint iter {X} (f: X -> X) (n: nat) (x: X): X :=
+  match n with
+  | 0 => x
+  | S n' => f (iter f n' x)
+  end.
+
+Lemma iter_muln: forall n x, n * x = iter (fun i => i + x) n 0.
+Proof.
+  elim => [//| n IH x].
+  by rewrite /iter -/iter mulSn addnC -IH.
+Qed.
+
+Lemma iter_addn: forall n x, n + x = iter S n x.
+Proof.
+  elim => [x //| n IH x].
+  by rewrite /iter -/iter addSn -IH.
+Qed.
+
+(* 1.9.4 *)
+Lemma iter_f: forall X (f: X -> X) x n, iter f n.+1 x = iter f n (f x).
+Proof.
+  move => X f x.
+  elim => [//| n].
+  rewrite /(iter f n.+2) -/iter.
+  rewrite /(iter f n.+1) -/iter => IH.
+  by rewrite IH.
+Qed.
+
+(* 1.9.5 *)
+Fixpoint iter_tailrec {X} (f: X -> X) (n: nat) (x: X): X :=
+  match n with
+  | 0 => x
+  | S n' => iter_tailrec f n' (f x)
+  end.
+
+Lemma iter_equiv: forall X (f: X -> X) x n, iter f n x = iter_tailrec f n x.
+Proof.
+  move => X f x n.
+  elim: n x => [//|n IH x].
+  by rewrite /iter_tailrec -/iter_tailrec iter_f IH.
+Qed.
+
+(* 1.9.6 *)
+Lemma iter_even: forall n b, iter negb (n * 2) b = b.
+Proof.
+  elim => [//| n IH b].
+  by rewrite mulSn !addSn add0n !iter_f IH Bool.negb_involutive.
+Qed.
+
+(* TODO: exs *)
+(* 1.9.7 *)
+(* 1.9.8 *)
+(* 1.10 *)
+
+(* 1.11 *)
+Definition Fib (f: nat -> nat) (n: nat): nat :=
+  match n with
+  | 0 => 0
+  | 1 => 1
+  | S(S n') => f n + f (S n)
+  end.
