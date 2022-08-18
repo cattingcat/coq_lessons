@@ -47,5 +47,60 @@ Proof.
 Qed.
 
 (* 7.2.3 *)
+Lemma enc0: forall c, encode c = 0 -> c = (0, 0).
+Proof.
+  move => [x y].
+  case x; case y => //.
+Qed.
+
+Lemma step_enc: forall x y, next (S x, y) = (x, S y).
+Proof. by []. Qed.
+
+Lemma step_enc': forall x, next (0, x) = (S x, 0).
+Proof. by []. Qed.
+
 Theorem eq': forall c, decode (encode c) = c.
 Proof.
+  move => c.
+  (* elim: {-1}(encode c) (erefl (encode c)). *)
+  have H: (forall ec, encode c = ec -> decode ec = c) -> (decode (encode c) = c).
+    move => Hec.
+    by apply Hec.
+  apply H => {H}.
+  move => ec.
+  move: c.
+  elim: ec => [c |n IH c].
+    by move/enc0 ->.
+  rewrite /decode -/decode.
+  case: c IH => [x y] IH.
+  case x; case y => //.
+    move => n'.
+    rewrite -step_enc step => H.
+    rewrite (IH (1, n')) => //.
+    by apply (eq_add_S _ _ H).
+
+    move => n'.
+    rewrite -step_enc' step => H.
+    rewrite (IH (0, n')) => //.
+    by apply (eq_add_S _ _ H).
+
+    move => n' n''.
+    rewrite -step_enc step => H.
+    rewrite (IH (n''.+2, n')) => //.
+    by apply (eq_add_S _ _ H).
+Qed.
+
+(* 7.2.4 *)
+
+Section tst.
+Variables x y: nat.
+Goal x = y -> x == y.
+Proof.
+  move/eqnP. (* reflection between = and eqn *)
+  Print eqnP.
+  Search (eqn _ _ = _ == _).
+  Print erefl.
+  rewrite {1}eqnE. (* equality betweek eqn and == *)
+  by [].
+Qed.
+End tst.
