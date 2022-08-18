@@ -48,6 +48,30 @@ Proof.
   by rewrite H H H.
 Qed.
 
+(* 6.1.5 *)
+Print True.
+
+Definition elim_bool: forall (p: bool -> Prop), p true -> p false -> forall b, p b.
+Proof.
+  move => p pt pf b.
+  by case b.
+Qed.
+
+Definition elim_T: forall (p: True -> Prop), p I -> forall b, p b.
+Proof.
+  move => p pI b.
+  by case b.
+Qed.
+
+Theorem true_el_eq: forall (a b: True), a = b.
+Proof.
+  move => a.
+  apply elim_T.
+  by case a.
+Qed.
+  
+
+
 (* 6.5.1 *)
 Goal ~(nat = bool).
 Proof.
@@ -55,6 +79,12 @@ Proof.
 Admitted.
 
 (* 6.5.2 *)
+Goal ~(True = False).
+Proof.
+  move => <-.
+  by [].
+Qed.
+
 (* TODO *)
 
 (* 6.7.1 *)
