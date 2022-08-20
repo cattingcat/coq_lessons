@@ -34,7 +34,7 @@ Theorem step: forall c, encode (next c) = S (encode c).
 Proof.
   move => [x y].
   elim x.
-    by rewrite /next /encode addn0 addn0 add0n /(s y.+1) -/s addSn addnC.
+    by rewrite /next /encode 2!addn0 add0n /(s y.+1) -/s addSn addnC.
   move => n IH.
   by rewrite /next /encode addnS addSn addnS.
 Qed.
