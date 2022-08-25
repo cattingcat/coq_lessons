@@ -57,18 +57,61 @@ Proof.
   apply H1.
 Admitted.
 
-Lemma trans: forall x y z, x < y -> y < S z -> x < z.
+Lemma leq0: forall x, x <= 0 -> x = 0.
 Proof.
-  elim.
-    move => y z contr.
-    exfalso.
-    admit.
-  move => n H.
-    move => x z H.
+  elim => [//|n IH].
+    move => contra.
     by exfalso.
-  move => n H x z H1 H2.
-Admitted.
+Qed.
 
+(* 15.5.2 *)
+Lemma leq_unpack: forall x y, x <= y -> x < y \/ x = y.
+Proof.
+  move => x y.
+  rewrite leq_eqVlt.
+  move => /orP.
+  case.
+    right.
+    by move: a => /eqnP.
+  by left.
+Qed.
+
+(* 15.5.5 *)
+Lemma existential_characrerization: forall x y, x <= y -> exists k, x + k = y.
+Proof.
+  move => x y.
+  elim: y x => [y /leq0 -> | y' IH x H].
+    by exists 0.
+  move: H => /leq_unpack.
+  case.
+    - move => /ltnSE H.
+      move : (IH x H) => [k H'].
+      exists k.+1.
+      by rewrite -H' addnS.
+  move => ->.
+  exists 0.
+  by rewrite addn0.
+Qed.
+
+
+(* 15.6.2 *)
+Lemma trans: forall x y z, x < y <= z -> x < z.
+Proof.
+  move => x y z /andP [Hl Hr].
+  move: (existential_characrerization Hl) (existential_characrerization Hr).
+  move => [k <-] [k' Hr'].
+  move: Hr'.
+  rewrite 2!addSn.
+  rewrite addnC addnCA -addnS.
+  move => <-.
+  rewrite /(_ < _) addnS subSS.
+  rewrite subnDA.
+  rewrite subnn.
+  rewrite sub0n.
+  by [].
+Qed.
+
+(* 15.7.1 *)
 Theorem complete_ind: forall (p: nat -> Type),
   (forall x, (forall y, y < x -> p y) -> p x) ->
   (forall x, p x).
@@ -80,7 +123,13 @@ Proof.
     move => n IH x' L.
     apply H => y Ly. 
     apply IH.
-    by apply (trans (y:=x')).
+    have G: y < x' <= n.
+      apply /andP.
+      split => [//|].
+      move: L.
+      rewrite [x' < n.+1]/(x'.+1 <= n.+1).
+      by rewrite subSS.
+    by apply (trans G).
   apply H.
   apply G.
 Qed.
