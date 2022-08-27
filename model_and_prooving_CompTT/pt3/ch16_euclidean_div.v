@@ -147,7 +147,25 @@ Qed.
 (* TODO *)
 
 (* 16.3.8 *)
-(* TODO *)
+Lemma uniq2: forall (y a b a' b': nat), 
+  (b <= y) -> (b' <= y) -> (a * y.+1 + b = a' * y.+1 + b') -> a = a' /\ b = b'.
+Proof.
+  move => y a b a' b' Hl Hl' H.
+  apply (cert_div_unique (x:=(a * y.+1 + b)) (y:=y)).
+  by split.
+  by split.
+Qed.
+
+Lemma ex1638: forall x y z, x * (z.+2) + 1 <> y * (z.+2) + 0.
+Proof.
+  move => x y z H.
+  have Hl: 1 <= z.+2.
+    by [].
+  have Hl': 0 <= z.+2.
+    by [].
+  move: (uniq2 (a:=x) (a':=y) (y:= z.+1)(b:=1) (b':=0) Hl Hl' H).
+  by move => [_ Contra].
+Qed.
 
 (* 16.3.9 *)
 (* TODO *)
