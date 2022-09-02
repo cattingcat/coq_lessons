@@ -63,7 +63,13 @@ Proof.
   apply (d2 (b:=b)) => //.
   split => //.
   by rewrite H.
-Qed.
+Defined.
+
+Print cert_div.
+Definition x: nat := match cert_div 5 3 with (existT (a, b) _) => a end.
+Compute (cert_div 5 3).
+Compute (projT1 (cert_div 5 3)).
+Compute (x).
 
 Lemma tst: forall n m k, n = m.+1 + k -> m < n.
 Proof.
