@@ -44,9 +44,6 @@ Proof.
   by apply Hs.
 Qed.
 
-
-
-
 (* 17.1.2 *)
 Lemma helper1: forall a b c, a >= c -> a + b - c = a - c + b.
 Proof.
@@ -162,4 +159,56 @@ Proof.
     move => H.
     split.
       move => k pk.
-Admitted.
+      move: (H k pk).
+      by rewrite ltn_neqAle => /andP [_ ->].
+    move => pn.
+    move : (H _ pn).
+    by rewrite ltnn.
+  move => [H1 H2] k pk.
+  move: (H1 _ pk).
+  rewrite leq_eqVlt => /orP.
+  case => H.
+    exfalso. apply H2. move: H => /eqP ->.
+    by apply pk.
+  by apply H.
+Qed.
+
+Fixpoint L (p: nat -> bool) (n k: nat): nat :=
+  match n with 
+  | 0 => k
+  | S n' => if p k then k else L p n' (S k)
+  end.
+
+(* 17.2.1 *)
+Lemma ex17211: forall (p: nat -> bool) n k, 
+  p (n + k) -> safe p k -> least (fun x => p x) (L p n k).
+Proof.
+  move => p.
+  rewrite /least /safe.
+  elim => [k| n' IH k pns H].
+    rewrite add0n /(L _ _ _) => pk H .
+    by split.
+  rewrite /(L) -/L.
+  move: pns (IH k.+1).
+  rewrite addSn addnS => psn IH'.
+  move: (IH' psn) => IH''.
+  split.
+    case EQ: (p k) => //.
+    apply IH''.
+    move => k' pk'.
+    move: (H _ pk').
+    rewrite leq_eqVlt => /orP.
+      case => //.
+    move => /eqP Contra.
+    exfalso; move: EQ.
+    by rewrite Contra pk'.
+  case EQ: (p k) => //.
+  apply IH''.
+  move => k' pk'.
+  move: (H _ pk').
+  rewrite leq_eqVlt => /orP.
+    case => //.
+  move => /eqP Contra.
+  exfalso; move: EQ.
+  by rewrite Contra pk'.
+Qed.
