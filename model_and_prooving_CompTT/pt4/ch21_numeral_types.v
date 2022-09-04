@@ -64,15 +64,13 @@ Proof.
 Qed.
 
 (* 21.2.3 *)
-Fixpoint tst (n m: nat): numeral n.+1 :=
-  match n, m return numeral n.+1 with
-  | S n', 0 => Z n'.+1
-  | S n', S m' => @U n.+1 (tst n' m')
-  | 0, S m' => Z 0
-  | 0, 0 => Z 0
-  end.
+Definition num_listing: forall (n: nat), seq (numeral n) :=
+  fix F n :=
+    match n with 
+    | 0 => [::]
+    | n'.+1 => [:: Z n' & map (@U n') (F n')]
+    end.
 
-Definition into_numeral: forall (n: nat), nat -> numeral n.
-Proof.
+Compute num_listing 6.
 
   
