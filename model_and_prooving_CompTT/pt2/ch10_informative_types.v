@@ -91,14 +91,14 @@ Search (Type -> Type -> Prop).
 (* Lemma sigma_bij X (p : X -> Prop): { x & p x } <-> (forall Z, (forall x, p x -> Z) -> Z). *)
 
 (* 10.2.9 *)
-Lemma sigma_eq_fw X Y : X + Y -> { b & if b then X else Y}.
+Lemma sigma_eq_fw X Y : X + Y -> { b & if b then X else Y }.
 Proof.
   case.
     by exists true.
   by exists false.
 Defined.
 
-Lemma sigma_eq_bw X Y : { b & if b then X else Y} -> X + Y.
+Lemma sigma_eq_bw X Y : { b & if b then X else Y } -> X + Y.
 Proof.
   move => [b p].
   case: b p => H.

@@ -73,4 +73,84 @@ Definition num_listing: forall (n: nat), seq (numeral n) :=
 
 Compute num_listing 6.
 
+
+(* 21.3 Inversion *)
+Definition num_inv: forall {n} (a: numeral n),
+  match n return numeral n -> Type with
+  | 0 => fun _ => void
+  | S n' => fun a => sum (a = Z n') { a' & a = U a' }
+  end a.
+Proof.
+  move => n.
+  case => [a | n' a].
+  - by left.
+  right.
+  by exists a.
+Defined.
+(* ^ see chipala convoy pattern *)
+
+Eval cbn in fun n => num_inv (Z n).
+Eval cbn in fun n (a: numeral n) => num_inv (U a).
+
+
+
+Theorem inversion: forall n (a: numeral n.+1),
+  { a' & a = @U n a' } + { a = Z n }.
+Proof.
+  move => n a.
+  case (@num_inv n.+1 a).
+  - by right.
+  by left.
+Qed.
+
+(* 21.3.1 *)
+
+Lemma U_inj: forall n a b, @U n a = @U n b -> a = b.
+Proof.
+  move => n a b H.
+  move: ((@f_equal _ _ (@P n) (@U n a) (@U n b)) H).
+  rewrite /P.
+  by case.
+Qed.
   
+
+Definition dec (X: Type) := sum X (X -> False).
+Lemma numeral_decidable:
+  forall n (a b: numeral n), dec (a = b).
+Proof.
+  move => n.
+  elim => [n' b | n' b IH b'].
+  - case (@inversion n' b).
+      move => [a' Hb].
+      right.
+      by rewrite Hb.
+    move => ->.
+    by left.
+  case (@inversion n' b').
+    move => [a' ->].
+    case (IH a').
+      move => ->.
+      by left.
+    move => contra.
+    right => H.
+    apply contra.
+    by apply (U_inj H).
+  move => ->.
+  by right.
+Qed.
+
+(* 21.3.2 *)
+(* TODO *)
+  
+(* 21.3.3 *)
+(* TODO *)
+  
+(* 21.4 Embedding numerals to numbers *)
+Definition to_nat: forall n, numeral n -> nat :=
+  fix F n m :=
+    match m with
+    | Z _ => 0
+    | U n' m' => S (F n' m')
+    end.
+
+Compute (to_nat (U (U (Z 3)))).
