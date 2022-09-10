@@ -101,7 +101,7 @@ Proof.
   case (@num_inv n.+1 a).
   - by right.
   by left.
-Qed.
+Defined.
 
 (* 21.3.1 *)
 
@@ -154,3 +154,116 @@ Definition to_nat: forall n, numeral n -> nat :=
     end.
 
 Compute (to_nat (U (U (Z 3)))).
+
+Lemma numeral_upper: forall n (a: numeral n), to_nat a < n.
+Proof.
+  move => n.
+  elim => [n' //| n' a' IH].
+  by rewrite /to_nat -/to_nat -addn1 -[n'.+1]addn1 ltn_add2r.
+Qed.
+
+Lemma to_nat_inj: forall n,
+  injective (@to_nat n).
+Proof.
+  move => n.
+  elim => [n' b // | n' a IH b].
+    move: (inversion b) => [[b' -> Contra] | -> //].
+    exfalso. move: Contra.
+    by rewrite /to_nat -/to_nat.
+  move: (inversion b) => [[b' ->] | -> //].
+  rewrite /to_nat -/to_nat.
+  by move /succn_inj /IH ->.
+Qed.
+
+Fixpoint from_nat k n : numeral n.+1 :=
+  match k, n with
+  | 0, m => Z m
+  | (S k), 0 => Z 0
+  | (S k), (S m) => U (from_nat k m)
+  end.
+
+Lemma from_nat_step: forall n m,
+  from_nat m.+1 n.+1 = U (from_nat m n).
+Proof.
+  by [].
+Qed.
+
+Lemma form_to: forall n (a: numeral n.+1), from_nat (to_nat a) n = a.
+Proof.
+  move => n a.
+  move: (inversion a) => [[a' ->] | -> //].
+  elim a' => [n'| n' a''].
+    by rewrite /to_nat -/to_nat /from_nat.
+  by rewrite /to_nat -/to_nat from_nat_step => ->.
+Qed.
+
+Lemma to_from: forall k n, k <= n -> @to_nat n.+1 (from_nat k n) = k.
+Proof.
+  elim => [n Hl // | n IH k' Hl].
+  rewrite /from_nat -/from_nat.
+  case E: k'.
+    exfalso. move: E Hl => ->.
+    by rewrite ltn0.
+  move: E Hl => ->.
+  rewrite ltnS => Hl.
+  move: (IH _ Hl).
+  by rewrite {2}/to_nat -/to_nat => ->.
+Qed.
+
+(* 21.4.1 *)
+Definition lift_numeral: forall n (a: numeral n), numeral n.+1 :=
+  fix F n a :=
+    match a with
+    | Z n' => Z n'.+1
+    | @U m k => @U m.+1 (F m k)
+    end.
+
+Lemma lift_numeral_inj: forall n,
+  injective (@lift_numeral n).
+Proof.
+  move => n.
+  elim => [n' b // |n' a IH b ].
+    move: (inversion b) => [[a' ->] | -> //].
+    rewrite /lift_numeral -/lift_numeral.
+    move => contra. exfalso.
+    by [].
+  move: (inversion b) => [[a' ->] | -> //].
+  by rewrite /lift_numeral -/lift_numeral => /U_inj /IH ->.
+Qed.
+  
+(* 21.5 Recursive numeral types *)
+Fixpoint finT (n: nat): Type :=
+  match n with
+  | 0 => void
+  | n'.+1 => option (finT n')
+  end.
+
+(* 21.5.1 *)
+Definition num_fin: forall n (a: numeral n), finT n := 
+  fix F n a :=
+    match a with
+    | Z _ => None
+    | U n' a => Some (F n' a)
+    end.
+
+Fixpoint fin_num {n} (a: finT n): numeral n :=
+  match n, a with
+  | 0, c => match c with end
+  | S n', None => Z n'
+  | S n', Some a' => U (fin_num a')
+  end.
+
+(* 21.5.2 *)
+Lemma finT0: finT 0 -> False.
+Proof.
+  by case.
+Qed.
+
+Lemma finT_inversion: forall n (a: finT n.+1), 
+  sum (a = None) { a' & a = Some a' }.
+Proof.
+  move => n.
+  elim.
+Admitted. (*Defined.*)
+
+(* TODO: custom eliminator *)
