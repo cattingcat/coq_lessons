@@ -19,8 +19,10 @@
             pname = "coq_lessons"; 
             version = "dev";
             buildCommand = ''
-              ${nixpkgsFor.${system}.coq}/bin/coqc -v
-              touch $out
+              mkdir $out
+              cp -r ${nixpkgsFor.${system}.coqPackages.mathcomp} $out/mathcomp
+              ${nixpkgsFor.${system}.coq}/bin/coqc -v > $out/ver
+              
             ''; 
             inherit system;
         };
@@ -29,11 +31,12 @@
       defaultPackage = forAllSystems (system: self.packages.${system}.coq_lessons);
       
       devShell = forAllSystems (system: nixpkgsFor.${system}.mkShell {
-        buildInputs = with nixpkgsFor.${system}; [ 
-          coq
-          coqPackages.mathcomp
-          coqPackages.QuickChick 
-        ];
+        buildInputs = 
+          with nixpkgsFor.${system}; [ 
+            coq
+            coqPackages.mathcomp
+            coqPackages.QuickChick 
+          ];
         shellHook = ''
           export PS1='\e[1;34mdev > \e[0m'
         '';
